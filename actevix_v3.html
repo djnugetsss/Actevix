@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Actevix</title>
+<link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#060910;
+  --surface:#0d1117;
+  --surface2:#131920;
+  --border:#1e2a36;
+  --accent:#00e5a0;
+  --accent2:#00b8ff;
+  --warn:#ff9500;
+  --danger:#ff3b3b;
+  --text:#e8f0f8;
+  --muted:#5a7a8a;
+  --card:#0f1820;
+}
+body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min-height:100vh;overflow-x:hidden}
+
+/* NAV */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:14px 20px;border-bottom:1px solid var(--border);background:rgba(6,9,16,0.97);backdrop-filter:blur(12px);position:sticky;top:0;z-index:100}
+.logo{font-family:'Syne',sans-serif;font-weight:800;font-size:20px;letter-spacing:-0.5px;background:linear-gradient(135deg,var(--accent),var(--accent2));-webkit-background-clip:text;-webkit-text-fill-color:transparent;flex-shrink:0}
+.logo span{opacity:0.5;font-weight:400}
+.tabs{display:flex;gap:3px;background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:3px}
+.tab-btn{padding:7px 16px;border:none;background:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:13px;font-weight:500;border-radius:7px;cursor:pointer;transition:all 0.2s;white-space:nowrap}
+.tab-btn.active{background:var(--surface2);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,0.4)}
+.avatar{width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--accent),var(--accent2));display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#000;flex-shrink:0}
+
+/* PAGES */
+.page{display:none;padding:20px 20px 60px;animation:fadeIn 0.25s ease}
+.page.active{display:block}
+@keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+
+/* DASHBOARD */
+.dash-grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:16px}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px;position:relative;overflow:hidden}
+.stat-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px}
+.stat-card.green::before{background:var(--accent)}
+.stat-card.blue::before{background:var(--accent2)}
+.stat-card.warn::before{background:var(--warn)}
+.stat-label{font-size:10px;font-weight:500;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:8px}
+.stat-val{font-family:'Syne',sans-serif;font-size:30px;font-weight:700;line-height:1}
+.stat-sub{font-size:11px;color:var(--muted);margin-top:5px}
+.stat-badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:20px;margin-top:8px}
+.badge-green{background:rgba(0,229,160,0.12);color:var(--accent)}
+.badge-warn{background:rgba(255,149,0,0.12);color:var(--warn)}
+
+.section-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.section-title .dot{width:6px;height:6px;border-radius:50%;background:var(--accent);flex-shrink:0}
+.two-col{display:grid;grid-template-columns:1.4fr 1fr;gap:14px;margin-bottom:18px}
+
+/* AI CHAT */
+.chat-card{background:var(--card);border:1px solid var(--border);border-radius:14px;overflow:hidden;display:flex;flex-direction:column}
+.chat-header{padding:13px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-shrink:0}
+.ai-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);animation:pulse 2s infinite;flex-shrink:0}
+.ai-dot.thinking{background:var(--warn);animation:thinking 0.6s ease-in-out infinite alternate}
+@keyframes thinking{from{opacity:0.3;transform:scale(0.8)}to{opacity:1;transform:scale(1.2)}}
+@keyframes pulse{0%,100%{opacity:1;box-shadow:0 0 0 0 rgba(0,229,160,0.4)}50%{opacity:0.8;box-shadow:0 0 0 6px rgba(0,229,160,0)}}
+.chat-msgs{padding:14px 16px;display:flex;flex-direction:column;gap:10px;height:260px;overflow-y:auto}
+.chat-msgs::-webkit-scrollbar{width:3px}
+.chat-msgs::-webkit-scrollbar-thumb{background:var(--border);border-radius:2px}
+.msg{max-width:88%;font-size:13px;line-height:1.55;padding:10px 13px;border-radius:12px}
+.msg.ai{background:var(--surface2);border:1px solid var(--border);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px}
+.msg.user{background:rgba(0,229,160,0.1);border:1px solid rgba(0,229,160,0.2);color:var(--text);align-self:flex-end;border-bottom-right-radius:4px}
+.msg strong{color:var(--accent);font-weight:500}
+.msg.typing{display:flex;align-items:center;gap:5px;padding:12px 16px}
+.typing-dot{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:typingBounce 1.2s ease-in-out infinite}
+.typing-dot:nth-child(2){animation-delay:0.2s}
+.typing-dot:nth-child(3){animation-delay:0.4s}
+@keyframes typingBounce{0%,60%,100%{transform:translateY(0)}30%{transform:translateY(-6px)}}
+.chat-input-row{padding:11px 16px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0}
+.chat-input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;transition:border-color 0.2s}
+.chat-input:focus{border-color:rgba(0,229,160,0.4)}
+.chat-input::placeholder{color:var(--muted)}
+.chat-input:disabled{opacity:0.5}
+.send-btn{background:var(--accent);border:none;border-radius:8px;padding:9px 15px;color:#000;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;cursor:pointer;transition:opacity 0.2s;flex-shrink:0}
+.send-btn:disabled{opacity:0.4;cursor:not-allowed}
+
+/* CHARTS */
+.chart-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.sleep-bars{display:flex;align-items:flex-end;gap:5px;height:80px;margin-top:10px}
+.sleep-bar-wrap{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px}
+.sleep-bar{width:100%;border-radius:4px 4px 0 0;min-width:16px}
+.sleep-day{font-size:10px;color:var(--muted)}
+.sleep-val{font-size:9px;font-weight:600}
+.risk-line{margin-top:10px}
+.risk-line svg{width:100%;height:65px}
+
+/* ALERTS */
+.alert-list{display:flex;flex-direction:column;gap:8px}
+.alert-item{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:11px 13px;display:flex;align-items:flex-start;gap:10px;border-left:3px solid}
+.alert-item.warn{border-left-color:var(--warn)}
+.alert-item.danger{border-left-color:var(--danger)}
+.alert-item.ok{border-left-color:var(--accent)}
+.alert-icon{font-size:15px;margin-top:1px}
+.alert-text{font-size:13px;line-height:1.45;flex:1}
+.alert-text strong{display:block;font-weight:500;margin-bottom:2px}
+.alert-text span{color:var(--muted);font-size:12px}
+
+/* SPORT TAGS */
+.sport-row{display:flex;gap:7px;margin-bottom:16px;flex-wrap:wrap}
+.sport-tag{padding:5px 13px;border-radius:20px;font-size:12px;font-weight:500;border:1px solid var(--border);background:var(--surface2);color:var(--muted);cursor:pointer;transition:all 0.2s}
+.sport-tag.active{background:rgba(0,229,160,0.1);border-color:rgba(0,229,160,0.4);color:var(--accent)}
+
+/* ========================
+   BODY MAP — 3D SKELETON
+======================== */
+.body-layout{display:grid;grid-template-columns:220px 1fr 240px;gap:20px;align-items:start}
+
+.skeleton-viewer{background:var(--card);border:1px solid var(--border);border-radius:16px;overflow:hidden;position:relative;user-select:none}
+.skeleton-stage{position:relative;width:100%;padding-bottom:140%;overflow:hidden;background:radial-gradient(ellipse at 50% 30%,#0d1e2e 0%,#060910 70%)}
+
+/* The 3D skeleton canvas drawn with CSS+SVG */
+.skel-canvas{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+.skel-canvas svg{width:70%;height:90%;transition:transform 0.05s linear}
+
+/* Rotation controls */
+.rotate-bar{display:flex;align-items:center;gap:8px;padding:10px 14px;border-top:1px solid var(--border);background:var(--surface2)}
+.rotate-label{font-size:10px;color:var(--muted);font-weight:500;text-transform:uppercase;letter-spacing:0.6px;flex-shrink:0}
+.rotate-btns{display:flex;gap:6px;flex:1;justify-content:center}
+.view-btn{padding:5px 12px;border:1px solid var(--border);border-radius:6px;background:none;color:var(--muted);font-family:'DM Sans',sans-serif;font-size:11px;font-weight:500;cursor:pointer;transition:all 0.18s}
+.view-btn.active{background:rgba(0,229,160,0.12);border-color:rgba(0,229,160,0.4);color:var(--accent)}
+.rotate-hint{font-size:10px;color:var(--muted);padding:6px 14px;text-align:center;border-top:1px solid var(--border)}
+
+/* Hotspot zones overlaid on the skeleton */
+.hotspot{position:absolute;border-radius:50%;cursor:pointer;transform:translate(-50%,-50%);transition:all 0.2s;display:flex;align-items:center;justify-content:center}
+.hotspot:hover{transform:translate(-50%,-50%) scale(1.3)}
+.hotspot-ring{width:100%;height:100%;border-radius:50%;animation:hotpulse 2s ease-in-out infinite}
+@keyframes hotpulse{0%,100%{transform:scale(1);opacity:0.8}50%{transform:scale(1.15);opacity:1}}
+.hotspot.ok .hotspot-ring{background:rgba(0,229,160,0.3);border:2px solid var(--accent)}
+.hotspot.warn .hotspot-ring{background:rgba(255,149,0,0.3);border:2px solid var(--warn)}
+.hotspot.danger .hotspot-ring{background:rgba(255,59,59,0.35);border:2px solid var(--danger)}
+
+/* Legend + checkin panel */
+.body-left{display:flex;flex-direction:column;gap:14px}
+.body-legend-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.body-legend{display:flex;flex-direction:column;gap:9px}
+.legend-item{display:flex;align-items:center;gap:10px;font-size:12px}
+.legend-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+
+/* Checkin */
+.checkin-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px 16px}
+.checkin-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.checkin-label{font-size:12px;color:var(--muted)}
+.checkin-dots{display:flex;gap:4px}
+.checkin-dot{width:24px;height:24px;border-radius:50%;border:1.5px solid var(--border);background:var(--surface2);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;color:var(--muted);transition:all 0.2s}
+.checkin-dot:hover,.checkin-dot.sel{border-color:var(--accent);background:rgba(0,229,160,0.1);color:var(--accent)}
+.checkin-dot.sel-warn{border-color:var(--warn);background:rgba(255,149,0,0.1);color:var(--warn)}
+.checkin-dot.sel-danger{border-color:var(--danger);background:rgba(255,59,59,0.1);color:var(--danger)}
+
+/* Detail panel */
+.body-panel{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;display:none}
+.body-panel.active{display:block}
+.body-panel h3{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:5px}
+.bp-sport{font-size:11px;color:var(--accent);font-weight:500;text-transform:uppercase;letter-spacing:0.6px;margin-bottom:11px}
+.body-panel p{font-size:13px;color:var(--muted);line-height:1.6;margin-bottom:10px}
+.risk-meter{height:6px;border-radius:3px;background:var(--border);margin:8px 0 4px}
+.risk-fill{height:100%;border-radius:3px}
+.metric-row{display:flex;justify-content:space-between;font-size:12px;color:var(--muted);margin-bottom:7px}
+
+/* TEAM */
+.team-layout{display:grid;grid-template-columns:280px 1fr;gap:18px}
+.team-sidebar{display:flex;flex-direction:column;gap:12px}
+.join-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:18px}
+.join-card h3{font-family:'Syne',sans-serif;font-size:15px;font-weight:700;margin-bottom:6px}
+.join-card p{font-size:12px;color:var(--muted);margin-bottom:12px;line-height:1.5}
+.code-display{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:13px;text-align:center;margin-bottom:11px}
+.code-display .code{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;letter-spacing:6px;color:var(--accent)}
+.code-display .code-label{font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:0.8px}
+.input-field{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:9px 13px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;outline:none;margin-bottom:8px;transition:border-color 0.2s}
+.input-field:focus{border-color:rgba(0,229,160,0.4)}
+.input-field::placeholder{color:var(--muted)}
+.btn-primary{width:100%;background:var(--accent);border:none;border-radius:8px;padding:10px;color:#000;font-family:'Syne',sans-serif;font-weight:700;font-size:13px;cursor:pointer;transition:opacity 0.2s}
+.btn-primary:hover{opacity:0.85}
+.btn-outline{width:100%;background:none;border:1px solid var(--border);border-radius:8px;padding:10px;color:var(--text);font-family:'DM Sans',sans-serif;font-size:13px;cursor:pointer;transition:all 0.2s;margin-top:6px}
+.btn-outline:hover{border-color:var(--accent);color:var(--accent)}
+.team-main{display:flex;flex-direction:column;gap:14px}
+.team-header-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:4px}
+.team-name{font-family:'Syne',sans-serif;font-size:18px;font-weight:700}
+.team-meta{font-size:12px;color:var(--muted)}
+.player-grid{display:flex;flex-direction:column;gap:8px}
+.player-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:13px 15px;display:grid;grid-template-columns:34px 1fr auto auto auto;align-items:center;gap:10px;cursor:pointer;transition:border-color 0.2s}
+.player-card:hover{border-color:rgba(0,229,160,0.2)}
+.player-avatar{width:34px;height:34px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:'Syne',sans-serif;font-weight:700;font-size:12px;color:#000}
+.player-name{font-size:14px;font-weight:500}
+.player-sport{font-size:11px;color:var(--muted)}
+.player-stat{text-align:center}
+.player-stat-val{font-family:'Syne',sans-serif;font-size:15px;font-weight:700}
+.player-stat-label{font-size:10px;color:var(--muted)}
+.risk-pill{padding:3px 11px;border-radius:20px;font-size:11px;font-weight:600}
+.risk-low{background:rgba(0,229,160,0.12);color:var(--accent)}
+.risk-med{background:rgba(255,149,0,0.12);color:var(--warn)}
+.risk-high{background:rgba(255,59,59,0.12);color:var(--danger)}
+.team-chart-card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px 18px}
+.mini-bars{display:flex;gap:4px;align-items:flex-end;height:48px;margin-top:10px}
+
+/* ========================
+   MOBILE
+======================== */
+@media(max-width:900px){
+  .body-layout{grid-template-columns:1fr 1fr;gap:14px}
+  .body-layout .body-left{grid-column:1;grid-row:1/3}
+  .skeleton-viewer{grid-column:2;grid-row:1}
+  .body-right{grid-column:1/3;grid-row:3}
+}
+@media(max-width:768px){
+  .nav{padding:11px 14px;gap:10px}
+  .logo{font-size:18px}
+  .tabs{gap:2px;padding:3px}
+  .tab-btn{padding:6px 10px;font-size:12px}
+  .avatar{width:30px;height:30px;font-size:11px}
+  .page{padding:14px 14px 80px}
+  .dash-grid{grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px}
+  .stat-card:last-child{grid-column:1/-1}
+  .two-col{grid-template-columns:1fr;gap:12px;margin-bottom:14px}
+  .chat-msgs{height:220px}
+  .sport-row{gap:6px;margin-bottom:14px}
+  .body-layout{grid-template-columns:1fr;gap:14px}
+  .team-layout{grid-template-columns:1fr;gap:14px}
+  .player-card{grid-template-columns:32px 1fr auto auto}
+  .player-card .risk-pill{display:none}
+}
+@media(max-width:420px){
+  .tabs{padding:2px}
+  .tab-btn{padding:5px 8px;font-size:11px}
+  .dash-grid{grid-template-columns:1fr;gap:9px}
+  .stat-card:last-child{grid-column:auto}
+  .logo{font-size:16px}
+}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="logo">actevix<span>.ai</span></div>
+  <div class="tabs">
+    <button class="tab-btn active" onclick="showPage('dashboard',this)">Dashboard</button>
+    <button class="tab-btn" onclick="showPage('body',this)">Body Map</button>
+    <button class="tab-btn" onclick="showPage('team',this)">Team</button>
+  </div>
+  <div class="avatar">AM</div>
+</nav>
+
+<!-- ===================== DASHBOARD ===================== -->
+<div class="page active" id="dashboard">
+  <div class="sport-row">
+    <div class="sport-tag active">Tennis</div>
+    <div class="sport-tag">Basketball</div>
+    <div class="sport-tag">Track</div>
+    <div class="sport-tag">Soccer</div>
+    <div class="sport-tag">+ Add Sport</div>
+  </div>
+
+  <div class="dash-grid">
+    <div class="stat-card green">
+      <div class="stat-label">Injury Risk Score</div>
+      <div class="stat-val" style="color:var(--accent)">34</div>
+      <div class="stat-sub">out of 100</div>
+      <div class="stat-badge badge-green">Low Risk</div>
+    </div>
+    <div class="stat-card blue">
+      <div class="stat-label">Avg Sleep (7 days)</div>
+      <div class="stat-val" style="color:var(--accent2)">6.8<span style="font-size:15px;color:var(--muted)">h</span></div>
+      <div class="stat-sub">Last night: 7.2h</div>
+      <div class="stat-badge" style="background:rgba(0,184,255,0.1);color:var(--accent2)">Adequate</div>
+    </div>
+    <div class="stat-card warn">
+      <div class="stat-label">Soreness Level</div>
+      <div class="stat-val" style="color:var(--warn)">6<span style="font-size:15px;color:var(--muted)">/10</span></div>
+      <div class="stat-sub">Left knee + lower back</div>
+      <div class="stat-badge badge-warn">Monitor</div>
+    </div>
+  </div>
+
+  <div class="two-col">
+    <div class="chat-card">
+      <div class="chat-header">
+        <div class="ai-dot" id="aiDot"></div>
+        <div>
+          <div style="font-family:'Syne',sans-serif;font-weight:600;font-size:14px">Actevix AI</div>
+          <div style="font-size:11px;color:var(--muted)" id="aiStatus">Powered by Claude · knows your data</div>
+        </div>
+      </div>
+      <div class="chat-msgs" id="chatMsgs">
+        <div class="msg ai">Hey Ansh! Based on today's check-in, your <strong>left knee soreness</strong> has been trending up for 3 days. I'd recommend reducing lateral movement drills today.</div>
+        <div class="msg ai">Your sleep was solid last night at 7.2h. Recovery window looks good — just watch that knee.</div>
+        <div class="msg user">Should I skip practice today?</div>
+        <div class="msg ai">Not necessarily. Your overall risk score is <strong>34 (low)</strong> — you're fine to practice at about 70% intensity. Avoid hard cutting movements and ice the knee post-session.</div>
+      </div>
+      <div class="chat-input-row">
+        <input class="chat-input" id="chatIn" placeholder="Ask about your recovery..." onkeydown="if(event.key==='Enter')sendMsg()">
+        <button class="send-btn" id="sendBtn" onclick="sendMsg()">Send</button>
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="chart-card">
+        <div class="section-title"><span class="dot"></span>Sleep — Last 7 Days</div>
+        <div class="sleep-bars" id="sleepBars"></div>
+      </div>
+      <div class="chart-card">
+        <div class="section-title"><span class="dot" style="background:var(--warn)"></span>Risk Score — 14 Days</div>
+        <div class="risk-line"><svg viewBox="0 0 300 70" preserveAspectRatio="none" id="riskSvg"></svg></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section-title"><span class="dot" style="background:var(--warn)"></span>Active Alerts</div>
+  <div class="alert-list">
+    <div class="alert-item warn">
+      <div class="alert-icon">⚠️</div>
+      <div class="alert-text"><strong>Left Knee — Soreness Trending Up</strong><span>Reported soreness 6/10 for 3 consecutive days. Reduce lateral load.</span></div>
+    </div>
+    <div class="alert-item ok">
+      <div class="alert-icon">✓</div>
+      <div class="alert-text"><strong>Recovery — On Track</strong><span>Sleep average above 6.5h this week. Keep it up before Saturday's match.</span></div>
+    </div>
+    <div class="alert-item danger">
+      <div class="alert-icon">🔴</div>
+      <div class="alert-text"><strong>Training Load Spike Detected</strong><span>You practiced 6 days in a row without a rest day. Schedule recovery tomorrow.</span></div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== BODY MAP ===================== -->
+<div class="page" id="body">
+  <div style="margin-bottom:14px">
+    <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:4px">Body Map</div>
+    <div style="font-size:13px;color:var(--muted)">Rotate the skeleton and tap a zone to see risk detail.</div>
+  </div>
+
+  <div class="body-layout">
+    <!-- LEFT: legend + checkin -->
+    <div class="body-left">
+      <div class="body-legend-card">
+        <div class="section-title" style="margin-bottom:10px"><span class="dot"></span>Legend</div>
+        <div class="body-legend">
+          <div class="legend-item"><div class="legend-dot" style="background:var(--accent)"></div><span>Healthy — no concerns</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--warn)"></div><span>Soreness detected</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div><span>High risk — monitor</span></div>
+          <div class="legend-item"><div class="legend-dot" style="background:var(--muted)"></div><span>No data logged</span></div>
+        </div>
+      </div>
+      <div class="checkin-card">
+        <div class="section-title" style="margin-bottom:10px"><span class="dot" style="background:var(--warn)"></span>Today's Log</div>
+        <div class="checkin-row">
+          <span class="checkin-label">Left Knee</span>
+          <div class="checkin-dots">
+            <div class="checkin-dot">1</div><div class="checkin-dot">2</div><div class="checkin-dot">3</div>
+            <div class="checkin-dot">4</div><div class="checkin-dot">5</div><div class="checkin-dot sel-warn">6</div>
+          </div>
+        </div>
+        <div class="checkin-row">
+          <span class="checkin-label">Lower Back</span>
+          <div class="checkin-dots">
+            <div class="checkin-dot">1</div><div class="checkin-dot">2</div><div class="checkin-dot">3</div>
+            <div class="checkin-dot sel">4</div><div class="checkin-dot">5</div><div class="checkin-dot">6</div>
+          </div>
+        </div>
+        <div class="checkin-row" style="margin-bottom:0">
+          <span class="checkin-label">R. Shoulder</span>
+          <div class="checkin-dots">
+            <div class="checkin-dot">1</div><div class="checkin-dot">2</div><div class="checkin-dot sel-danger">3</div>
+            <div class="checkin-dot">4</div><div class="checkin-dot">5</div><div class="checkin-dot">6</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CENTER: 3D skeleton viewer -->
+    <div class="skeleton-viewer" id="skeletonViewer">
+      <div class="skeleton-stage" id="skeletonStage">
+        <div class="skel-canvas" id="skelCanvas">
+          <!-- SVG skeleton rendered by JS -->
+        </div>
+        <!-- Hotspot zones — positioned as % of container -->
+        <div id="hotspotsLayer" style="position:absolute;inset:0;pointer-events:none"></div>
+      </div>
+      <div class="rotate-bar">
+        <span class="rotate-label">View</span>
+        <div class="rotate-btns">
+          <button class="view-btn active" onclick="setView('front',this)">Front</button>
+          <button class="view-btn" onclick="setView('side',this)">Side</button>
+          <button class="view-btn" onclick="setView('back',this)">Back</button>
+          <button class="view-btn" onclick="setView('3q',this)">¾</button>
+        </div>
+      </div>
+      <div class="rotate-hint">Tap a glowing zone to inspect</div>
+    </div>
+
+    <!-- RIGHT: detail panel -->
+    <div class="body-right">
+      <div class="section-title"><span class="dot"></span>Region Detail</div>
+      <div class="body-panel active" id="panel-default">
+        <p style="font-size:13px;color:var(--muted);line-height:1.6">Tap any glowing hotspot on the skeleton to see sport-specific function, current soreness, and recommendations.</p>
+      </div>
+      <div class="body-panel" id="panel-rKnee">
+        <h3>Right Knee</h3><div class="bp-sport">Tennis</div>
+        <p>Your right knee absorbs high lateral forces during split-steps and cross-court cuts. The patellar tendon and MCL are primary stress points for tennis players.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--danger)">6/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:72%;background:var(--danger)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--danger)">High</span></div>
+        <p style="font-size:12px;color:var(--warn);margin-top:4px">Ice 15 min post-practice. Avoid hard lateral cuts for 48h. Strengthen VMO with straight-leg raises.</p>
+      </div>
+      <div class="body-panel" id="panel-lBack">
+        <h3>Lower Back</h3><div class="bp-sport">Tennis</div>
+        <p>The lumbar region rotates heavily during serves and groundstrokes. Torsional loading without core stability is the leading cause of lower back issues in junior tennis players.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--warn)">4/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:45%;background:var(--warn)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--warn)">Moderate</span></div>
+        <p style="font-size:12px;color:var(--warn);margin-top:4px">Add 10 min core activation before practice. Check your serve toss — reaching too far left increases lumbar torque.</p>
+      </div>
+      <div class="body-panel" id="panel-rShoulder">
+        <h3>Right Shoulder</h3><div class="bp-sport">Tennis</div>
+        <p>The rotator cuff and AC joint bear significant load during serving and overheads. Internal rotation fatigue is common after high-volume serving sessions.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--accent)">2/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:20%;background:var(--accent)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--accent)">Low</span></div>
+        <p style="font-size:12px;color:var(--accent);margin-top:4px">Looking good. Maintain external rotation exercises to keep the cuff balanced.</p>
+      </div>
+      <div class="body-panel" id="panel-lShoulder">
+        <h3>Left Shoulder</h3><div class="bp-sport">Tennis</div>
+        <p>The non-dominant shoulder stabilizes your body during groundstrokes. Can develop impingement if posture drops during long rallies.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--accent)">1/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:10%;background:var(--accent)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--accent)">Low</span></div>
+      </div>
+      <div class="body-panel" id="panel-lKnee">
+        <h3>Left Knee</h3><div class="bp-sport">Tennis</div>
+        <p>Acts as your pivot point during right-handed groundstrokes. Watch for medial stress during closed-stance forehands.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--accent)">1/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:10%;background:var(--accent)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--accent)">Low</span></div>
+      </div>
+      <div class="body-panel" id="panel-core">
+        <h3>Core</h3><div class="bp-sport">Tennis</div>
+        <p>The core transfers power from lower to upper body in every stroke. Weak core stability is linked to lower back pain and shoulder overcompensation.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--accent)">0/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:15%;background:var(--accent)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--accent)">Low</span></div>
+        <p style="font-size:12px;color:var(--accent);margin-top:4px">Core is solid. Given your lower back soreness, maintain daily planks and anti-rotation work.</p>
+      </div>
+      <div class="body-panel" id="panel-rAnkle">
+        <h3>Right Ankle</h3><div class="bp-sport">Tennis</div>
+        <p>Handles rapid direction changes and lateral loading. Hardcourt players have higher ankle sprain incidence than clay or grass players.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--accent)">0/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:8%;background:var(--accent)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--accent)">Low</span></div>
+      </div>
+      <div class="body-panel" id="panel-lAnkle">
+        <h3>Left Ankle</h3><div class="bp-sport">Tennis</div>
+        <p>Single-leg balance work significantly reduces lateral ankle sprain risk in court sport athletes.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--accent)">0/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:8%;background:var(--accent)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--accent)">Low</span></div>
+      </div>
+      <div class="body-panel" id="panel-rQuad">
+        <h3>Right Quad</h3><div class="bp-sport">Tennis</div>
+        <p>Powers acceleration to the ball and absorbs shock on landing. Eccentric load during deceleration is the primary strain mechanism for racket sport players.</p>
+        <div class="metric-row"><span>Soreness</span><span style="color:var(--accent)">2/10</span></div>
+        <div class="risk-meter"><div class="risk-fill" style="width:18%;background:var(--accent)"></div></div>
+        <div class="metric-row"><span>Risk Level</span><span style="color:var(--accent)">Low</span></div>
+        <p style="font-size:12px;color:var(--accent);margin-top:4px">Strong quad strength is helping protect your right knee — keep up the leg days.</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===================== TEAM ===================== -->
+<div class="page" id="team">
+  <div class="team-layout">
+    <div class="team-sidebar">
+      <div class="join-card">
+        <h3>Join a Team</h3>
+        <p>Enter a team code from your coach to connect your health data to their dashboard.</p>
+        <input class="input-field" placeholder="Enter team code (e.g. GHC-247)">
+        <button class="btn-primary">Join Team</button>
+        <button class="btn-outline">Create Team (Trainer)</button>
+      </div>
+      <div class="join-card">
+        <h3>Your Team Code</h3>
+        <p>Share this code with athletes to add them to Granada Hills Tennis.</p>
+        <div class="code-display">
+          <div class="code">GHC-247</div>
+          <div class="code-label">Expires in 7 days</div>
+        </div>
+        <button class="btn-primary">Copy Code</button>
+      </div>
+    </div>
+    <div class="team-main">
+      <div class="team-header-row">
+        <div>
+          <div class="team-name">Granada Hills Tennis</div>
+          <div class="team-meta">Coach Rivera · 8 athletes · Updated 2h ago</div>
+        </div>
+        <div class="risk-pill risk-med">2 flagged</div>
+      </div>
+      <div class="team-chart-card">
+        <div class="section-title"><span class="dot" style="background:var(--warn)"></span>Team Avg Risk — 7 Days</div>
+        <div class="mini-bars" id="teamBars"></div>
+      </div>
+      <div class="section-title"><span class="dot"></span>Athlete Roster</div>
+      <div class="player-grid">
+        <div class="player-card">
+          <div class="player-avatar" style="background:linear-gradient(135deg,var(--accent),var(--accent2))">AM</div>
+          <div><div class="player-name">Ansh Mehta</div><div class="player-sport">Tennis · 7.2h sleep</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--warn)">6</div><div class="player-stat-label">Soreness</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--accent)">34</div><div class="player-stat-label">Risk</div></div>
+          <div class="risk-pill risk-low">Low</div>
+        </div>
+        <div class="player-card">
+          <div class="player-avatar" style="background:linear-gradient(135deg,#ff6b6b,#ff9500)">JL</div>
+          <div><div class="player-name">Jordan Lee</div><div class="player-sport">Tennis · 5.8h sleep</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--danger)">8</div><div class="player-stat-label">Soreness</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--danger)">78</div><div class="player-stat-label">Risk</div></div>
+          <div class="risk-pill risk-high">High ⚠</div>
+        </div>
+        <div class="player-card">
+          <div class="player-avatar" style="background:linear-gradient(135deg,#a78bfa,#7c3aed)">KP</div>
+          <div><div class="player-name">Kai Pham</div><div class="player-sport">Tennis · 8.1h sleep</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--accent)">2</div><div class="player-stat-label">Soreness</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--accent)">18</div><div class="player-stat-label">Risk</div></div>
+          <div class="risk-pill risk-low">Low</div>
+        </div>
+        <div class="player-card">
+          <div class="player-avatar" style="background:linear-gradient(135deg,#fbbf24,#f59e0b)">MS</div>
+          <div><div class="player-name">Maya Singh</div><div class="player-sport">Tennis · 6.4h sleep</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--warn)">5</div><div class="player-stat-label">Soreness</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--warn)">52</div><div class="player-stat-label">Risk</div></div>
+          <div class="risk-pill risk-med">Moderate</div>
+        </div>
+        <div class="player-card">
+          <div class="player-avatar" style="background:linear-gradient(135deg,#34d399,#059669)">TR</div>
+          <div><div class="player-name">Tyler Ruiz</div><div class="player-sport">Tennis · 7.5h sleep</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--accent)">1</div><div class="player-stat-label">Soreness</div></div>
+          <div class="player-stat"><div class="player-stat-val" style="color:var(--accent)">12</div><div class="player-stat-label">Risk</div></div>
+          <div class="risk-pill risk-low">Low</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ========================
+// TAB SWITCHING
+// ========================
+function showPage(id, btn) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (btn) btn.classList.add('active');
+}
+
+// ========================
+// CHARTS
+// ========================
+const sleepData = [{d:'Mon',h:6.5},{d:'Tue',h:7.8},{d:'Wed',h:5.9},{d:'Thu',h:8.1},{d:'Fri',h:6.2},{d:'Sat',h:7.0},{d:'Sun',h:7.2}];
+const maxSleep = Math.max(...sleepData.map(s => s.h));
+const sleepBarsEl = document.getElementById('sleepBars');
+sleepData.forEach(s => {
+  const pct = s.h / maxSleep * 100;
+  const color = s.h >= 7 ? 'var(--accent)' : s.h >= 6 ? 'var(--warn)' : 'var(--danger)';
+  sleepBarsEl.innerHTML += `<div class="sleep-bar-wrap">
+    <div class="sleep-val" style="color:${color}">${s.h}</div>
+    <div class="sleep-bar" style="height:${pct}%;background:${color};opacity:0.75"></div>
+    <div class="sleep-day">${s.d}</div>
+  </div>`;
+});
+
+const riskData = [28,32,25,40,38,55,60,58,45,50,42,38,34,34];
+const rsvg = document.getElementById('riskSvg');
+const rw=300,rh=70,rp=8;
+const minR=Math.min(...riskData),maxR=Math.max(...riskData);
+const pts = riskData.map((v,i)=>{
+  const x=rp+(i/(riskData.length-1))*(rw-rp*2);
+  const y=rh-rp-((v-minR)/(maxR-minR))*(rh-rp*2);
+  return `${x},${y}`;
+});
+const pathD='M'+pts.join('L');
+rsvg.innerHTML=`<defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff9500" stop-opacity="0.3"/><stop offset="100%" stop-color="#ff9500" stop-opacity="0"/></linearGradient></defs>
+<path d="${pathD}L${rw-rp},${rh-rp}L${rp},${rh-rp}Z" fill="url(#rg)"/>
+<path d="${pathD}" fill="none" stroke="#ff9500" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+<circle cx="${rw-rp}" cy="${rh-rp-((riskData[riskData.length-1]-minR)/(maxR-minR))*(rh-rp*2)}" r="3" fill="#ff9500"/>`;
+
+const teamRisk=[41,38,45,52,48,55,46], tdays=['M','T','W','T','F','S','S'];
+const maxT=Math.max(...teamRisk);
+const tb=document.getElementById('teamBars');
+teamRisk.forEach((v,i)=>{
+  const pct=v/maxT*100;
+  const color=v<40?'var(--accent)':v<55?'var(--warn)':'var(--danger)';
+  tb.innerHTML+=`<div style="flex:1;display:flex;flex-direction:column;align-items:center;gap:3px">
+    <div style="font-size:9px;color:var(--muted)">${v}</div>
+    <div style="height:${pct}%;background:${color};opacity:0.7;flex:1;width:100%;border-radius:3px 3px 0 0"></div>
+    <div style="font-size:9px;color:var(--muted)">${tdays[i]}</div>
+  </div>`;
+});
+
+// ========================
+// SPORT TAGS
+// ========================
+document.querySelectorAll('.sport-tag').forEach(t => {
+  t.addEventListener('click', function() {
+    if (this.textContent !== '+ Add Sport') {
+      document.querySelectorAll('.sport-tag').forEach(x => x.classList.remove('active'));
+      this.classList.add('active');
+    }
+  });
+});
+
+// ========================
+// SORENESS DOTS
+// ========================
+document.querySelectorAll('.checkin-dots').forEach(group => {
+  group.querySelectorAll('.checkin-dot').forEach((dot, i) => {
+    dot.addEventListener('click', function() {
+      group.querySelectorAll('.checkin-dot').forEach(d => d.classList.remove('sel','sel-warn','sel-danger'));
+      const cls = (i+1) <= 3 ? 'sel' : (i+1) <= 5 ? 'sel-warn' : 'sel-danger';
+      this.classList.add(cls);
+    });
+  });
+});
+
+// ========================
+// BODY PANEL SWITCHING
+// ========================
+function showPanel(id) {
+  document.querySelectorAll('.body-panel').forEach(p => p.classList.remove('active'));
+  const panel = document.getElementById('panel-' + id);
+  (panel || document.getElementById('panel-default')).classList.add('active');
+}
+
+// ========================
+// 3D SKELETON VIEWER
+// ========================
+
+// Skeleton SVG definitions for each view
+// Each zone: {id, cx, cy (% of stage), r, status, panel}
+const VIEWS = {
+  front: {
+    label: 'front',
+    // Full front-facing skeleton SVG
+    svg: `<svg viewBox="0 0 160 380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="boneGrad" cx="35%" cy="30%" r="65%">
+          <stop offset="0%" stop-color="#d4b896"/>
+          <stop offset="60%" stop-color="#b8956a"/>
+          <stop offset="100%" stop-color="#8a6840"/>
+        </radialGradient>
+        <radialGradient id="boneGrad2" cx="40%" cy="25%" r="60%">
+          <stop offset="0%" stop-color="#c4a882"/>
+          <stop offset="100%" stop-color="#7a5830"/>
+        </radialGradient>
+        <filter id="boneShadow" x="-20%" y="-20%" width="140%" height="140%">
+          <feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.5)"/>
+        </filter>
+      </defs>
+      <!-- SKULL -->
+      <ellipse cx="80" cy="22" rx="20" ry="22" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <ellipse cx="80" cy="36" rx="14" ry="10" fill="url(#boneGrad2)"/>
+      <!-- eye sockets -->
+      <ellipse cx="72" cy="18" rx="5" ry="4" fill="#2a1a0a" opacity="0.7"/>
+      <ellipse cx="88" cy="18" rx="5" ry="4" fill="#2a1a0a" opacity="0.7"/>
+      <!-- nasal -->
+      <path d="M78 24 L82 24 L80 30 Z" fill="#2a1a0a" opacity="0.5"/>
+      <!-- jaw -->
+      <path d="M66 34 Q80 44 94 34" fill="none" stroke="#b8956a" stroke-width="2"/>
+      <!-- teeth suggestion -->
+      <rect x="73" y="36" width="14" height="4" rx="1" fill="#e8e0d0" opacity="0.6"/>
+
+      <!-- CERVICAL SPINE / NECK -->
+      <rect x="76" y="44" width="8" height="12" rx="2" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <!-- spine vertebrae -->
+      <rect x="77" y="56" width="6" height="4" rx="1" fill="url(#boneGrad2)"/>
+      <rect x="77" y="61" width="6" height="4" rx="1" fill="url(#boneGrad2)"/>
+      <rect x="77" y="66" width="6" height="4" rx="1" fill="url(#boneGrad2)"/>
+
+      <!-- CLAVICLES -->
+      <path d="M80 58 Q60 54 44 62" stroke="url(#boneGrad)" stroke-width="5" fill="none" stroke-linecap="round" filter="url(#boneShadow)"/>
+      <path d="M80 58 Q100 54 116 62" stroke="url(#boneGrad)" stroke-width="5" fill="none" stroke-linecap="round" filter="url(#boneShadow)"/>
+
+      <!-- RIBCAGE -->
+      <ellipse cx="80" cy="98" rx="30" ry="36" fill="none" stroke="url(#boneGrad)" stroke-width="3" opacity="0.3" filter="url(#boneShadow)"/>
+      <!-- ribs -->
+      <path d="M80 70 Q50 74 46 84 Q50 86 80 82" fill="none" stroke="url(#boneGrad)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M80 70 Q110 74 114 84 Q110 86 80 82" fill="none" stroke="url(#boneGrad)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M80 76 Q48 80 44 92 Q48 94 80 90" fill="none" stroke="url(#boneGrad)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M80 76 Q112 80 116 92 Q112 94 80 90" fill="none" stroke="url(#boneGrad)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M80 83 Q46 88 43 100 Q47 103 80 98" fill="none" stroke="url(#boneGrad)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M80 83 Q114 88 117 100 Q113 103 80 98" fill="none" stroke="url(#boneGrad)" stroke-width="2.5" stroke-linecap="round"/>
+      <path d="M80 90 Q48 96 46 108 Q50 111 80 106" fill="none" stroke="url(#boneGrad)" stroke-width="2" stroke-linecap="round"/>
+      <path d="M80 90 Q112 96 114 108 Q110 111 80 106" fill="none" stroke="url(#boneGrad)" stroke-width="2" stroke-linecap="round"/>
+      <path d="M80 97 Q50 104 49 116 Q53 118 80 113" fill="none" stroke="url(#boneGrad)" stroke-width="2" stroke-linecap="round"/>
+      <path d="M80 97 Q110 104 111 116 Q107 118 80 113" fill="none" stroke="url(#boneGrad)" stroke-width="2" stroke-linecap="round"/>
+      <!-- sternum -->
+      <rect x="77" y="68" width="6" height="48" rx="3" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+
+      <!-- SCAPULAE / SHOULDER JOINTS -->
+      <ellipse cx="44" cy="64" rx="10" ry="8" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <ellipse cx="116" cy="64" rx="10" ry="8" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+
+      <!-- HUMERUS (upper arms) -->
+      <rect x="33" y="68" width="9" height="48" rx="4" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <rect x="118" y="68" width="9" height="48" rx="4" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <!-- elbow joints -->
+      <ellipse cx="37" cy="118" rx="7" ry="5" fill="url(#boneGrad2)"/>
+      <ellipse cx="123" cy="118" rx="7" ry="5" fill="url(#boneGrad2)"/>
+
+      <!-- RADIUS/ULNA (forearms) -->
+      <rect x="31" y="121" width="5" height="40" rx="2.5" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <rect x="38" y="121" width="5" height="40" rx="2.5" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <rect x="117" y="121" width="5" height="40" rx="2.5" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <rect x="124" y="121" width="5" height="40" rx="2.5" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <!-- wrist joints -->
+      <ellipse cx="37" cy="163" rx="7" ry="4" fill="url(#boneGrad2)"/>
+      <ellipse cx="123" cy="163" rx="7" ry="4" fill="url(#boneGrad2)"/>
+
+      <!-- PELVIS -->
+      <path d="M56 136 Q80 128 104 136 Q112 150 104 162 Q80 168 56 162 Q48 150 56 136 Z" fill="url(#boneGrad)" filter="url(#boneShadow)" opacity="0.9"/>
+      <ellipse cx="80" cy="148" rx="12" ry="10" fill="#0a1520" opacity="0.4"/>
+
+      <!-- LUMBAR SPINE -->
+      <rect x="77" y="116" width="6" height="5" rx="1" fill="url(#boneGrad2)"/>
+      <rect x="77" y="122" width="6" height="5" rx="1" fill="url(#boneGrad2)"/>
+      <rect x="77" y="128" width="6" height="5" rx="1" fill="url(#boneGrad2)"/>
+      <rect x="77" y="134" width="6" height="5" rx="1" fill="url(#boneGrad2)"/>
+      <rect x="77" y="140" width="6" height="5" rx="1" fill="url(#boneGrad2)"/>
+
+      <!-- FEMUR (thigh bones) -->
+      <rect x="59" y="164" width="12" height="72" rx="6" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <rect x="89" y="164" width="12" height="72" rx="6" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <!-- femoral head -->
+      <ellipse cx="65" cy="164" rx="8" ry="6" fill="url(#boneGrad2)"/>
+      <ellipse cx="95" cy="164" rx="8" ry="6" fill="url(#boneGrad2)"/>
+
+      <!-- KNEE JOINTS (patella) -->
+      <ellipse cx="65" cy="239" rx="10" ry="8" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <ellipse cx="95" cy="239" rx="10" ry="8" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <!-- kneecap detail -->
+      <ellipse cx="65" cy="239" rx="6" ry="5" fill="url(#boneGrad2)" opacity="0.8"/>
+      <ellipse cx="95" cy="239" rx="6" ry="5" fill="url(#boneGrad2)" opacity="0.8"/>
+
+      <!-- TIBIA/FIBULA (shins) -->
+      <rect x="60" y="246" width="8" height="62" rx="4" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <rect x="69" y="248" width="5" height="58" rx="2.5" fill="url(#boneGrad2)" opacity="0.8"/>
+      <rect x="90" y="246" width="8" height="62" rx="4" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <rect x="99" y="248" width="5" height="58" rx="2.5" fill="url(#boneGrad2)" opacity="0.8"/>
+
+      <!-- ANKLES -->
+      <ellipse cx="65" cy="310" rx="9" ry="6" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <ellipse cx="95" cy="310" rx="9" ry="6" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+
+      <!-- FEET -->
+      <ellipse cx="62" cy="322" rx="11" ry="6" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <ellipse cx="98" cy="322" rx="11" ry="6" fill="url(#boneGrad)" filter="url(#boneShadow)"/>
+      <!-- toe bones -->
+      <rect x="52" y="326" width="4" height="6" rx="2" fill="url(#boneGrad2)"/>
+      <rect x="57" y="327" width="4" height="5" rx="2" fill="url(#boneGrad2)"/>
+      <rect x="62" y="327" width="4" height="5" rx="2" fill="url(#boneGrad2)"/>
+      <rect x="67" y="327" width="4" height="5" rx="2" fill="url(#boneGrad2)"/>
+      <rect x="88" y="326" width="4" height="6" rx="2" fill="url(#boneGrad2)"/>
+      <rect x="93" y="327" width="4" height="5" rx="2" fill="url(#boneGrad2)"/>
+      <rect x="98" y="327" width="4" height="5" rx="2" fill="url(#boneGrad2)"/>
+      <rect x="103" y="327" width="4" height="5" rx="2" fill="url(#boneGrad2)"/>
+    </svg>`,
+    hotspots: [
+      {id:'rShoulder', cx:28, cy:18, r:18, status:'warn',   label:'R. Shoulder'},
+      {id:'lShoulder', cx:72, cy:18, r:18, status:'ok',     label:'L. Shoulder'},
+      {id:'core',      cx:50, cy:34, r:20, status:'ok',     label:'Core'},
+      {id:'lBack',     cx:50, cy:40, r:18, status:'warn',   label:'Lower Back'},
+      {id:'rKnee',     cx:40, cy:65, r:18, status:'danger', label:'R. Knee'},
+      {id:'lKnee',     cx:60, cy:65, r:18, status:'ok',     label:'L. Knee'},
+      {id:'rAnkle',    cx:40, cy:84, r:14, status:'ok',     label:'R. Ankle'},
+      {id:'lAnkle',    cx:60, cy:84, r:14, status:'ok',     label:'L. Ankle'},
+    ]
+  },
+  side: {
+    svg: `<svg viewBox="0 0 120 380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bG" cx="40%" cy="30%" r="65%">
+          <stop offset="0%" stop-color="#d4b896"/>
+          <stop offset="100%" stop-color="#8a6840"/>
+        </radialGradient>
+        <radialGradient id="bG2" cx="40%" cy="25%" r="60%">
+          <stop offset="0%" stop-color="#c4a882"/>
+          <stop offset="100%" stop-color="#7a5830"/>
+        </radialGradient>
+        <filter id="bS"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.5)"/></filter>
+      </defs>
+      <!-- Skull side view -->
+      <ellipse cx="62" cy="22" rx="18" ry="21" fill="url(#bG)" filter="url(#bS)"/>
+      <!-- jaw -->
+      <path d="M48 28 L50 42 Q58 46 66 42 L66 28" fill="url(#bG2)" opacity="0.8"/>
+      <!-- eye socket -->
+      <ellipse cx="70" cy="18" rx="6" ry="5" fill="#2a1a0a" opacity="0.7"/>
+      <!-- Cervical / spine -->
+      <rect x="56" y="43" width="7" height="80" rx="3" fill="url(#bG)" filter="url(#bS)"/>
+      <!-- vertebrae bumps -->
+      <rect x="50" y="50" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="56" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="63" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="70" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="77" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="84" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="91" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="98" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="105" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="112" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="119" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <rect x="50" y="126" width="6" height="4" rx="2" fill="url(#bG2)"/>
+      <!-- Ribs side -->
+      <path d="M63 70 Q82 74 84 88 Q82 90 63 88" fill="none" stroke="url(#bG)" stroke-width="2.5"/>
+      <path d="M63 78 Q84 82 86 96 Q84 98 63 96" fill="none" stroke="url(#bG)" stroke-width="2.5"/>
+      <path d="M63 86 Q84 91 85 106 Q83 108 63 105" fill="none" stroke="url(#bG)" stroke-width="2.5"/>
+      <path d="M63 94 Q83 99 84 114 Q82 116 63 113" fill="none" stroke="url(#bG)" stroke-width="2.5"/>
+      <path d="M63 102 Q82 108 82 122 Q80 124 63 121" fill="none" stroke="url(#bG)" stroke-width="2"/>
+      <!-- Pelvis side -->
+      <path d="M46 133 Q60 126 70 133 Q76 145 70 158 Q60 163 50 158 Q42 145 46 133Z" fill="url(#bG)" filter="url(#bS)" opacity="0.9"/>
+      <!-- Upper arm -->
+      <rect x="74" y="62" width="9" height="50" rx="4" fill="url(#bG)" filter="url(#bS)"/>
+      <!-- Forearm -->
+      <rect x="76" y="114" width="7" height="40" rx="3" fill="url(#bG)" filter="url(#bS)"/>
+      <!-- Femur -->
+      <rect x="54" y="160" width="11" height="72" rx="5" fill="url(#bG)" filter="url(#bS)"/>
+      <!-- Knee -->
+      <ellipse cx="59" cy="234" rx="10" ry="8" fill="url(#bG)" filter="url(#bS)"/>
+      <!-- Tibia -->
+      <rect x="55" y="242" width="9" height="62" rx="4" fill="url(#bG)" filter="url(#bS)"/>
+      <!-- Ankle/foot -->
+      <ellipse cx="59" cy="306" rx="9" ry="6" fill="url(#bG)" filter="url(#bS)"/>
+      <path d="M50 310 Q59 318 75 314 Q76 308 70 306 Q59 304 50 310Z" fill="url(#bG)" filter="url(#bS)"/>
+    </svg>`,
+    hotspots: [
+      {id:'rShoulder', cx:64, cy:18, r:16, status:'warn',   label:'Shoulder'},
+      {id:'lBack',     cx:44, cy:38, r:16, status:'warn',   label:'Lower Back'},
+      {id:'core',      cx:58, cy:28, r:16, status:'ok',     label:'Core'},
+      {id:'rKnee',     cx:50, cy:64, r:16, status:'danger', label:'Knee'},
+      {id:'rAnkle',    cx:50, cy:83, r:13, status:'ok',     label:'Ankle'},
+    ]
+  },
+  back: {
+    svg: `<svg viewBox="0 0 160 380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bGb" cx="35%" cy="30%" r="65%">
+          <stop offset="0%" stop-color="#d4b896"/>
+          <stop offset="100%" stop-color="#8a6840"/>
+        </radialGradient>
+        <radialGradient id="bG2b" cx="40%" cy="25%" r="60%">
+          <stop offset="0%" stop-color="#c4a882"/>
+          <stop offset="100%" stop-color="#7a5830"/>
+        </radialGradient>
+        <filter id="bSb"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.5)"/></filter>
+      </defs>
+      <!-- Skull back -->
+      <ellipse cx="80" cy="22" rx="20" ry="22" fill="url(#bGb)" filter="url(#bSb)"/>
+      <!-- occipital ridge -->
+      <path d="M60 28 Q80 32 100 28" fill="none" stroke="#8a6840" stroke-width="2"/>
+      <!-- Spine full -->
+      <rect x="77" y="44" width="6" height="100" rx="3" fill="url(#bGb)" filter="url(#bSb)"/>
+      <!-- Vertebrae processes -->
+      <rect x="72" y="50" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="57" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="64" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="72" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="80" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="88" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="96" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="104" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="112" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="120" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <rect x="72" y="128" width="16" height="4" rx="2" fill="url(#bG2b)"/>
+      <!-- Scapulae -->
+      <path d="M48 58 Q38 72 42 88 Q50 90 56 80 L58 60Z" fill="url(#bGb)" filter="url(#bSb)" opacity="0.85"/>
+      <path d="M112 58 Q122 72 118 88 Q110 90 104 80 L102 60Z" fill="url(#bGb)" filter="url(#bSb)" opacity="0.85"/>
+      <!-- Clavicles back -->
+      <path d="M80 54 Q60 50 44 58" stroke="url(#bGb)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M80 54 Q100 50 116 58" stroke="url(#bGb)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <!-- Ribs back -->
+      <path d="M80 68 Q50 72 46 84" fill="none" stroke="url(#bGb)" stroke-width="2.5"/>
+      <path d="M80 68 Q110 72 114 84" fill="none" stroke="url(#bGb)" stroke-width="2.5"/>
+      <path d="M80 76 Q48 80 44 92" fill="none" stroke="url(#bGb)" stroke-width="2.5"/>
+      <path d="M80 76 Q112 80 116 92" fill="none" stroke="url(#bGb)" stroke-width="2.5"/>
+      <path d="M80 84 Q46 89 44 101" fill="none" stroke="url(#bGb)" stroke-width="2.5"/>
+      <path d="M80 84 Q114 89 116 101" fill="none" stroke="url(#bGb)" stroke-width="2.5"/>
+      <path d="M80 92 Q48 97 46 109" fill="none" stroke="url(#bGb)" stroke-width="2"/>
+      <path d="M80 92 Q112 97 114 109" fill="none" stroke="url(#bGb)" stroke-width="2"/>
+      <path d="M80 100 Q50 106 50 118" fill="none" stroke="url(#bGb)" stroke-width="2"/>
+      <path d="M80 100 Q110 106 110 118" fill="none" stroke="url(#bGb)" stroke-width="2"/>
+      <!-- Shoulder joints -->
+      <ellipse cx="44" cy="62" rx="10" ry="8" fill="url(#bGb)" filter="url(#bSb)"/>
+      <ellipse cx="116" cy="62" rx="10" ry="8" fill="url(#bGb)" filter="url(#bSb)"/>
+      <!-- Humerus -->
+      <rect x="33" y="66" width="9" height="48" rx="4" fill="url(#bGb)" filter="url(#bSb)"/>
+      <rect x="118" y="66" width="9" height="48" rx="4" fill="url(#bGb)" filter="url(#bSb)"/>
+      <!-- Forearms -->
+      <rect x="31" y="118" width="5" height="40" rx="2.5" fill="url(#bGb)"/>
+      <rect x="38" y="118" width="5" height="40" rx="2.5" fill="url(#bGb)"/>
+      <rect x="117" y="118" width="5" height="40" rx="2.5" fill="url(#bGb)"/>
+      <rect x="124" y="118" width="5" height="40" rx="2.5" fill="url(#bGb)"/>
+      <!-- Pelvis back -->
+      <path d="M56 134 Q80 126 104 134 Q112 148 104 160 Q80 168 56 160 Q48 148 56 134Z" fill="url(#bGb)" filter="url(#bSb)" opacity="0.9"/>
+      <!-- Sacrum -->
+      <path d="M74 134 L86 134 L88 160 L72 160Z" fill="url(#bG2b)" opacity="0.6"/>
+      <!-- Femurs -->
+      <rect x="59" y="162" width="12" height="72" rx="6" fill="url(#bGb)" filter="url(#bSb)"/>
+      <rect x="89" y="162" width="12" height="72" rx="6" fill="url(#bGb)" filter="url(#bSb)"/>
+      <!-- Knees -->
+      <ellipse cx="65" cy="237" rx="10" ry="8" fill="url(#bGb)" filter="url(#bSb)"/>
+      <ellipse cx="95" cy="237" rx="10" ry="8" fill="url(#bGb)" filter="url(#bSb)"/>
+      <!-- Tibia/Fibula back -->
+      <rect x="60" y="244" width="8" height="60" rx="4" fill="url(#bGb)" filter="url(#bSb)"/>
+      <rect x="69" y="246" width="5" height="57" rx="2.5" fill="url(#bG2b)"/>
+      <rect x="90" y="244" width="8" height="60" rx="4" fill="url(#bGb)" filter="url(#bSb)"/>
+      <rect x="99" y="246" width="5" height="57" rx="2.5" fill="url(#bG2b)"/>
+      <!-- Ankles/Feet -->
+      <ellipse cx="65" cy="307" rx="9" ry="6" fill="url(#bGb)" filter="url(#bSb)"/>
+      <ellipse cx="95" cy="307" rx="9" ry="6" fill="url(#bGb)" filter="url(#bSb)"/>
+      <ellipse cx="62" cy="319" rx="11" ry="5" fill="url(#bGb)"/>
+      <ellipse cx="98" cy="319" rx="11" ry="5" fill="url(#bGb)"/>
+    </svg>`,
+    hotspots: [
+      {id:'rShoulder', cx:27, cy:17, r:18, status:'warn',   label:'R. Shoulder'},
+      {id:'lShoulder', cx:73, cy:17, r:18, status:'ok',     label:'L. Shoulder'},
+      {id:'lBack',     cx:50, cy:37, r:20, status:'warn',   label:'Lower Back'},
+      {id:'rKnee',     cx:40, cy:64, r:18, status:'danger', label:'R. Knee'},
+      {id:'lKnee',     cx:60, cy:64, r:18, status:'ok',     label:'L. Knee'},
+      {id:'rAnkle',    cx:40, cy:83, r:14, status:'ok',     label:'R. Ankle'},
+      {id:'lAnkle',    cx:60, cy:83, r:14, status:'ok',     label:'L. Ankle'},
+    ]
+  },
+  '3q': {
+    svg: `<svg viewBox="0 0 150 380" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="bG3" cx="35%" cy="30%" r="65%">
+          <stop offset="0%" stop-color="#d4b896"/>
+          <stop offset="100%" stop-color="#8a6840"/>
+        </radialGradient>
+        <radialGradient id="bG23" cx="40%" cy="25%" r="60%">
+          <stop offset="0%" stop-color="#c4a882"/>
+          <stop offset="100%" stop-color="#7a5830"/>
+        </radialGradient>
+        <filter id="bS3"><feDropShadow dx="1" dy="2" stdDeviation="2" flood-color="rgba(0,0,0,0.5)"/></filter>
+      </defs>
+      <!-- Skull 3/4 -->
+      <ellipse cx="75" cy="22" rx="20" ry="21" fill="url(#bG3)" filter="url(#bS3)"/>
+      <ellipse cx="80" cy="35" rx="12" ry="9" fill="url(#bG23)"/>
+      <ellipse cx="82" cy="18" rx="5" ry="4" fill="#2a1a0a" opacity="0.6"/>
+      <path d="M63 30 Q75 40 86 32" fill="none" stroke="#b8956a" stroke-width="2"/>
+      <!-- Neck -->
+      <rect x="71" y="43" width="8" height="12" rx="3" fill="url(#bG3)"/>
+      <!-- Spine visible at angle -->
+      <rect x="68" y="55" width="6" height="90" rx="3" fill="url(#bG3)" filter="url(#bS3)"/>
+      <!-- Vertebrae -->
+      <rect x="62" y="60" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="68" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="76" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="84" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="92" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="100" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="108" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="116" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <rect x="62" y="124" width="12" height="4" rx="2" fill="url(#bG23)"/>
+      <!-- Clavicle -->
+      <path d="M75 56 Q55 52 40 60" stroke="url(#bG3)" stroke-width="5" fill="none" stroke-linecap="round"/>
+      <path d="M75 56 Q95 52 108 60" stroke="url(#bG3)" stroke-width="4" fill="none" stroke-linecap="round" opacity="0.7"/>
+      <!-- Scapula visible -->
+      <path d="M44 58 Q34 72 38 86 Q46 88 52 78 L54 58Z" fill="url(#bG3)" filter="url(#bS3)" opacity="0.85"/>
+      <!-- Ribs 3/4 -->
+      <path d="M75 68 Q48 72 44 83" fill="none" stroke="url(#bG3)" stroke-width="2.5"/>
+      <path d="M75 68 Q102 72 106 80" fill="none" stroke="url(#bG3)" stroke-width="2" opacity="0.6"/>
+      <path d="M75 76 Q46 80 42 91" fill="none" stroke="url(#bG3)" stroke-width="2.5"/>
+      <path d="M75 76 Q103 80 107 88" fill="none" stroke="url(#bG3)" stroke-width="2" opacity="0.6"/>
+      <path d="M75 84 Q44 89 42 100" fill="none" stroke="url(#bG3)" stroke-width="2.5"/>
+      <path d="M75 84 Q103 89 106 98" fill="none" stroke="url(#bG3)" stroke-width="2" opacity="0.6"/>
+      <path d="M75 92 Q45 97 44 108" fill="none" stroke="url(#bG3)" stroke-width="2.5"/>
+      <path d="M75 100 Q46 106 45 117" fill="none" stroke="url(#bG3)" stroke-width="2"/>
+      <!-- Sternum partial -->
+      <rect x="73" y="66" width="5" height="48" rx="2" fill="url(#bG3)"/>
+      <!-- Shoulder joints -->
+      <ellipse cx="40" cy="62" rx="10" ry="8" fill="url(#bG3)" filter="url(#bS3)"/>
+      <ellipse cx="108" cy="62" rx="8" ry="7" fill="url(#bG23)" filter="url(#bS3)" opacity="0.8"/>
+      <!-- Arms -->
+      <rect x="29" y="66" width="9" height="48" rx="4" fill="url(#bG3)" filter="url(#bS3)"/>
+      <rect x="110" y="66" width="8" height="46" rx="4" fill="url(#bG23)" filter="url(#bS3)" opacity="0.8"/>
+      <rect x="27" y="116" width="5" height="40" rx="2.5" fill="url(#bG3)"/>
+      <rect x="34" y="116" width="5" height="40" rx="2.5" fill="url(#bG3)"/>
+      <rect x="112" y="114" width="5" height="38" rx="2.5" fill="url(#bG23)" opacity="0.7"/>
+      <!-- Pelvis -->
+      <path d="M52 133 Q75 125 100 132 Q108 146 100 158 Q75 165 52 158 Q44 146 52 133Z" fill="url(#bG3)" filter="url(#bS3)"/>
+      <!-- Femurs -->
+      <rect x="56" y="160" width="12" height="70" rx="6" fill="url(#bG3)" filter="url(#bS3)"/>
+      <rect x="84" y="160" width="11" height="70" rx="5" fill="url(#bG23)" filter="url(#bS3)" opacity="0.85"/>
+      <!-- Knees -->
+      <ellipse cx="62" cy="233" rx="10" ry="8" fill="url(#bG3)" filter="url(#bS3)"/>
+      <ellipse cx="90" cy="232" rx="9" ry="7" fill="url(#bG23)" filter="url(#bS3)" opacity="0.85"/>
+      <!-- Tibia -->
+      <rect x="57" y="241" width="9" height="60" rx="4" fill="url(#bG3)" filter="url(#bS3)"/>
+      <rect x="66" y="243" width="5" height="56" rx="2.5" fill="url(#bG23)"/>
+      <rect x="86" y="241" width="8" height="60" rx="4" fill="url(#bG23)" filter="url(#bS3)" opacity="0.85"/>
+      <!-- Ankles/Feet -->
+      <ellipse cx="62" cy="303" rx="9" ry="6" fill="url(#bG3)" filter="url(#bS3)"/>
+      <ellipse cx="90" cy="303" rx="8" ry="5" fill="url(#bG23)" filter="url(#bS3)" opacity="0.85"/>
+      <ellipse cx="60" cy="314" rx="11" ry="5" fill="url(#bG3)"/>
+      <ellipse cx="92" cy="314" rx="10" ry="5" fill="url(#bG23)" opacity="0.8"/>
+    </svg>`,
+    hotspots: [
+      {id:'rShoulder', cx:27, cy:17, r:17, status:'warn',   label:'R. Shoulder'},
+      {id:'lShoulder', cx:72, cy:17, r:16, status:'ok',     label:'L. Shoulder'},
+      {id:'lBack',     cx:46, cy:38, r:18, status:'warn',   label:'Lower Back'},
+      {id:'core',      cx:54, cy:30, r:18, status:'ok',     label:'Core'},
+      {id:'rKnee',     cx:41, cy:63, r:17, status:'danger', label:'R. Knee'},
+      {id:'lKnee',     cx:60, cy:63, r:16, status:'ok',     label:'L. Knee'},
+      {id:'rAnkle',    cx:41, cy:83, r:13, status:'ok',     label:'R. Ankle'},
+      {id:'lAnkle',    cx:62, cy:83, r:13, status:'ok',     label:'L. Ankle'},
+    ]
+  }
+};
+
+let currentView = 'front';
+
+function setView(view, btn) {
+  currentView = view;
+  document.querySelectorAll('.view-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  renderSkeleton();
+}
+
+function renderSkeleton() {
+  const vd = VIEWS[currentView];
+  const canvas = document.getElementById('skelCanvas');
+  canvas.innerHTML = vd.svg;
+
+  // Render hotspots
+  const layer = document.getElementById('hotspotsLayer');
+  layer.innerHTML = '';
+  layer.style.pointerEvents = 'auto';
+
+  vd.hotspots.forEach(h => {
+    const dot = document.createElement('div');
+    dot.className = `hotspot ${h.status}`;
+    dot.style.cssText = `left:${h.cx}%;top:${h.cy}%;width:${h.r}px;height:${h.r}px;`;
+    dot.title = h.label;
+
+    const ring = document.createElement('div');
+    ring.className = 'hotspot-ring';
+    dot.appendChild(ring);
+
+    dot.addEventListener('click', () => {
+      showPanel(h.id);
+      // Flash the dot
+      dot.style.transform = 'translate(-50%,-50%) scale(1.4)';
+      setTimeout(() => { dot.style.transform = ''; }, 200);
+    });
+
+    layer.appendChild(dot);
+  });
+}
+
+// Init skeleton on load
+renderSkeleton();
+
+// ========================
+// LIVE CLAUDE AI CHAT
+// ========================
+const ATHLETE_CONTEXT = `You are Actevix AI, a sport injury prevention assistant embedded in the Actevix app. You are talking to Ansh Mehta, a junior tennis player.
+
+Current athlete data (today):
+- Sport: Tennis (primary)
+- Injury Risk Score: 34 out of 100 (Low)
+- Average Sleep (last 7 days): 6.8 hours. Last night: 7.2h
+- Soreness: Left knee 6/10, Lower back 4/10, Right shoulder 2/10
+- Training load: 6 consecutive practice days without a rest day (flagged)
+- Active alerts: Left knee soreness trending up 3 days, training load spike
+- Sleep trend: Mon 6.5h, Tue 7.8h, Wed 5.9h, Thu 8.1h, Fri 6.2h, Sat 7.0h, Sun 7.2h
+- Risk score trend (14 days): peaked at 60 mid-week, now back to 34
+
+Your role:
+- Give concise, practical injury prevention advice tailored to Ansh's data
+- Be direct and conversational — like a knowledgeable athletic trainer
+- Reference his specific numbers when relevant
+- Keep responses under 4 sentences unless the question genuinely needs more
+- Never be alarmist for minor soreness
+- Use **bold** for emphasis on key terms`;
+
+const conversationHistory = [
+  {role:'user', content:"Hi, give me a quick status on how I'm doing today."},
+  {role:'assistant', content:"Hey Ansh! Based on today's check-in, your **left knee soreness** has been trending up for 3 days — that's the main thing to watch. Sleep was solid at 7.2h last night, recovery window looks good. Risk score is 34 (low), but schedule that rest day — 6 straight days is too many."},
+  {role:'user', content:"Should I skip practice today?"},
+  {role:'assistant', content:"Not necessarily. Your overall risk score is **34 (low)** — you're fine to practice at about 70% intensity. Avoid hard cutting movements and ice the knee post-session."}
+];
+
+let isLoading = false;
+
+function setLoadingState(loading) {
+  isLoading = loading;
+  document.getElementById('chatIn').disabled = loading;
+  document.getElementById('sendBtn').disabled = loading;
+  const dot = document.getElementById('aiDot');
+  const status = document.getElementById('aiStatus');
+  if (loading) {
+    dot.classList.add('thinking');
+    status.textContent = 'Thinking...';
+  } else {
+    dot.classList.remove('thinking');
+    status.textContent = 'Powered by Claude · knows your data';
+  }
+}
+
+function addTypingIndicator() {
+  const msgs = document.getElementById('chatMsgs');
+  const el = document.createElement('div');
+  el.className = 'msg ai typing';
+  el.id = 'typingIndicator';
+  el.innerHTML = '<div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>';
+  msgs.appendChild(el);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function removeTypingIndicator() {
+  const el = document.getElementById('typingIndicator');
+  if (el) el.remove();
+}
+
+function appendMsg(text, role) {
+  const msgs = document.getElementById('chatMsgs');
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = text.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>');
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+async function sendMsg() {
+  if (isLoading) return;
+  const input = document.getElementById('chatIn');
+  const userText = input.value.trim();
+  if (!userText) return;
+
+  appendMsg(userText, 'user');
+  conversationHistory.push({role:'user', content:userText});
+  input.value = '';
+  setLoadingState(true);
+  addTypingIndicator();
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-20250514',
+        max_tokens: 1000,
+        system: ATHLETE_CONTEXT,
+        messages: conversationHistory
+      })
+    });
+
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error?.message || `HTTP ${response.status}`);
+
+    const aiText = data.content?.[0]?.text || "Sorry, I couldn't generate a response.";
+    conversationHistory.push({role:'assistant', content:aiText});
+    removeTypingIndicator();
+    appendMsg(aiText, 'ai');
+  } catch (err) {
+    removeTypingIndicator();
+    appendMsg(`⚠️ Couldn't reach Claude: ${err.message}`, 'ai');
+    console.error('Actevix AI error:', err);
+  } finally {
+    setLoadingState(false);
+    document.getElementById('chatIn').focus();
+  }
+}
+</script>
+</body>
+</html>
