@@ -88,8 +88,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 .sleep-bar{width:100%;border-radius:4px 4px 0 0;min-width:16px}
 .sleep-day{font-size:10px;color:var(--muted)}
 .sleep-val{font-size:9px;font-weight:600}
-.risk-line{margin-top:10px}
-.risk-line svg{width:100%;height:65px}
+.risk-line{display:flex;gap:10px;align-items:center;margin-top:10px}
+.risk-axis{display:flex;flex-direction:column;justify-content:space-between;font-size:10px;color:var(--muted);line-height:1.3}
+.risk-axis span{display:block}
+.risk-line svg{flex:1;width:100%;height:80px}
 
 /* ALERTS */
 .alert-list{display:flex;flex-direction:column;gap:8px}
@@ -305,7 +307,17 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
       </div>
       <div class="chart-card">
         <div class="section-title"><span class="dot" style="background:var(--warn)"></span>Risk Score — 14 Days</div>
-        <div class="risk-line"><svg viewBox="0 0 300 70" preserveAspectRatio="none" id="riskSvg"></svg></div>
+        <div class="risk-line">
+          <div class="risk-axis">
+            <span>100</span>
+            <span>80</span>
+            <span>60</span>
+            <span>40</span>
+            <span>20</span>
+            <span>0</span>
+          </div>
+          <svg viewBox="0 0 300 70" preserveAspectRatio="none" id="riskSvg"></svg>
+        </div>
       </div>
     </div>
   </div>
@@ -331,7 +343,8 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
 <div class="page" id="body">
   <div style="margin-bottom:14px">
     <div style="font-family:'Syne',sans-serif;font-size:20px;font-weight:700;margin-bottom:4px">Body Map</div>
-    <div style="font-size:13px;color:var(--muted)">Rotate the skeleton and tap a zone to see risk detail.</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:6px">View: Front / Back</div>
+    <div style="font-size:13px;color:var(--muted)">Toggle between the front and back skeleton, then tap a zone to inspect.</div>
   </div>
 
   <div class="body-layout">
@@ -385,12 +398,10 @@ body{background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;min
         <span class="rotate-label">View</span>
         <div class="rotate-btns">
           <button class="view-btn active" onclick="setView('front',this)">Front</button>
-          <button class="view-btn" onclick="setView('side',this)">Side</button>
           <button class="view-btn" onclick="setView('back',this)">Back</button>
-          <button class="view-btn" onclick="setView('3q',this)">¾</button>
         </div>
       </div>
-      <div class="rotate-hint">Tap a glowing zone to inspect</div>
+      <div class="rotate-hint">Front / Back only — tap a glowing zone to inspect.</div>
     </div>
 
     <!-- RIGHT: detail panel -->
@@ -575,8 +586,12 @@ sleepData.forEach(s => {
 
 const riskData = [28,32,25,40,38,55,60,58,45,50,42,38,34,34];
 const rsvg = document.getElementById('riskSvg');
-const rw=300,rh=70,rp=8;
-const minR=Math.min(...riskData),maxR=Math.max(...riskData);
+const rw=300,rh=70,rp=10;
+const minR=0,maxR=100;
+const gridLines = [0,20,40,60,80,100].map((value, idx) => {
+  const y = rp + idx * ((rh - rp*2) / 5);
+  return `<line x1="${rp}" y1="${y}" x2="${rw-rp}" y2="${y}" stroke="rgba(255,255,255,0.12)" stroke-width="1"/>`;
+}).join('');
 const pts = riskData.map((v,i)=>{
   const x=rp+(i/(riskData.length-1))*(rw-rp*2);
   const y=rh-rp-((v-minR)/(maxR-minR))*(rh-rp*2);
@@ -584,6 +599,7 @@ const pts = riskData.map((v,i)=>{
 });
 const pathD='M'+pts.join('L');
 rsvg.innerHTML=`<defs><linearGradient id="rg" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#ff9500" stop-opacity="0.3"/><stop offset="100%" stop-color="#ff9500" stop-opacity="0"/></linearGradient></defs>
+${gridLines}
 <path d="${pathD}L${rw-rp},${rh-rp}L${rp},${rh-rp}Z" fill="url(#rg)"/>
 <path d="${pathD}" fill="none" stroke="#ff9500" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <circle cx="${rw-rp}" cy="${rh-rp-((riskData[riskData.length-1]-minR)/(maxR-minR))*(rh-rp*2)}" r="3" fill="#ff9500"/>`;
