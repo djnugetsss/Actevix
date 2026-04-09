@@ -8,6 +8,10 @@
     "scheme": "actevix",
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
+    "updates": {
+  "checkAutomatically": "NEVER",
+  "enabled": false
+},
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
@@ -22,7 +26,8 @@
         "backgroundColor": "#0D1117"
       },
       "edgeToEdgeEnabled": true,
-      "predictiveBackGestureEnabled": false
+      "predictiveBackGestureEnabled": false,
+      "package": "com.djnugets.actevix"
     },
     "web": {
       "bundler": "metro",
@@ -34,6 +39,12 @@
     ],
     "experiments": {
       "typedRoutes": true
+    },
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "3e6ace33-88c2-4a86-9fc9-b8e638756b00"
+      }
     }
   }
 }
