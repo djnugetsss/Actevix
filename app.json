@@ -9,16 +9,20 @@
     "userInterfaceStyle": "dark",
     "newArchEnabled": true,
     "updates": {
-  "checkAutomatically": "NEVER",
-  "enabled": false
-},
+      "checkAutomatically": "NEVER",
+      "enabled": false
+    },
     "splash": {
       "image": "./assets/images/splash-icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#0D1117"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.anshmehta.actevix",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {

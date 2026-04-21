@@ -12,9 +12,11 @@ import {
 } from 'react-native';
 
 const SPORTS = [
-  'Football', 'Basketball', 'Soccer', 'Track',
-  'Swimming', 'Cricket', 'Baseball', 'Gymnastics',
-  'Working Out', 'Tennis', 'Hockey', 'Volleyball',
+  'Basketball', 'Football', 'Soccer', 'Baseball', 'Softball',
+  'Tennis', 'Swimming', 'Track & Field', 'Volleyball', 'Wrestling',
+  'MMA / Boxing', 'Lacrosse', 'Hockey', 'Rugby', 'Golf',
+  'Cycling', 'CrossFit', 'Gymnastics', 'Dance', 'Cheerleading',
+  'Rowing', 'Working Out', 'Other',
 ];
 
 const GENDERS = ['Male', 'Female', 'Non-binary', 'Prefer not to say'];

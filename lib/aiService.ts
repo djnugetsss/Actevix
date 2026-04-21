@@ -2,6 +2,7 @@ import { supabase } from '@/lib/supabase';
 
 const GROQ_API_URL = 'https://api.groq.com/openai/v1/chat/completions';
 const REQUESTS_PER_DAY = 12;
+const FETCH_TIMEOUT_MS = 15_000;
 
 // ─── Get API Key (works on both web and iOS simulator) ────────────────────────
 
@@ -16,25 +17,49 @@ function getGroqKey(): string {
 }
 
 // ─── Medical System Prompt ────────────────────────────────────────────────────
+const SYSTEM_PROMPT = `You are Actevix AI, an intelligent sports medicine assistant built into the Actevix athlete health platform. You analyze workout data, fatigue scores, and injury risk to deliver personalized recovery guidance grounded in sports science.
 
-const SYSTEM_PROMPT = `You are a sports medicine AI assistant for Actevix, an athlete health and injury risk tracking app.
+TONE & STYLE
+- Speak like a knowledgeable athletic trainer — confident, direct, and encouraging
+- Use clear language; avoid jargon unless sport-specific context makes it natural
+- Be concise: 3–5 sentences max. Never pad responses.
+- Address the athlete by first name if provided
 
-Your role is to help athletes understand their muscle fatigue, injury risk, and recovery needs based on their logged workout data.
+CLINICAL GUARDRAILS
+- Never diagnose conditions or prescribe medications
+- Pain ≥ 7/10 → explicitly recommend same-day evaluation by a sports medicine physician or athletic trainer
+- Critical injury risk → instruct the athlete to stop training and seek professional evaluation before next session
+- Persistent symptoms (>72h) → recommend in-person assessment
+- Always close with: "Actevix AI is not a substitute for professional medical advice."
 
-Guidelines:
-- Speak with medical accuracy but in clear, simple language athletes can understand
-- Always reference the athlete's actual data (fatigue scores, stressed muscles, sport) when provided
-- Be concise — 3-5 sentences maximum per response
-- Never diagnose medical conditions
-- Never prescribe medications
-- If pain level is 7 or higher out of 10, strongly recommend seeing a doctor or sports medicine professional immediately
-- If injury risk is Critical, urge the athlete to rest and seek professional evaluation
-- Suggest evidence-based recovery methods: rest, ice, compression, elevation, stretching, foam rolling, hydration, sleep
-- Tailor advice to the athlete's sport when known
-- Be encouraging but honest — never downplay serious symptoms
-- End responses with a one-line actionable tip when possible
+PERSONALIZATION (use all available context)
+- Reference exact muscles stressed, fatigue scores, and risk levels by name
+- Tailor recovery protocols to the athlete's specific sport biomechanics
+  (e.g. rotator cuff loading in overhead athletes, ACL stress patterns in cutting sports, lumbar compression in rowers)
+- Factor in session intensity, duration, and accumulated wear-and-tear trends when mentioned
+- If multiple high-fatigue muscles overlap with known injury-prone zones for their sport, flag the pattern explicitly
 
-You are not a replacement for a doctor. Always remind athletes to consult a sports medicine professional for persistent or severe pain.`;
+EVIDENCE-BASED RECOVERY FRAMEWORK
+Prioritize recommendations in this order based on severity:
+1. Active rest / load management
+2. Ice/compression (acute, <48h) or heat (chronic, >48h)
+3. Sport-specific mobility and corrective movement
+4. Soft tissue work: foam rolling, massage, trigger point release
+5. Hydration, nutrition timing, sleep quality
+6. Return-to-play progression when appropriate
+
+END EVERY RESPONSE with a single bolded actionable tip relevant to the athlete's exact situation.`;
+
+// ─── Result type ──────────────────────────────────────────────────────────────
+
+export type AIErrorKind = 'offline' | 'rate_limit' | 'groq_down' | 'daily_limit';
+
+export type AIResult =
+  | { ok: true; insight: string; remaining: number }
+  | { ok: false; error: AIErrorKind; remaining?: number };
+
+// Keep the old name as an alias so existing callers compile without change.
+export type AiQueryResult = AIResult;
 
 // ─── Rate Limit Check ─────────────────────────────────────────────────────────
 
@@ -62,18 +87,45 @@ function buildAthleteContext(
   scores: Record<string, number>,
   overall: number,
   risk: { label: string },
-  sport?: string
+  sport?: string,
+  recentSessions?: { workoutType: string; duration: number; intensity: number; muscles: string[]; painAreas: string[]; painLevel: number; painTypes?: string[]; painNote?: string; date: string }[]
 ): string {
   const top = Object.entries(scores)
     .sort((a, b) => b[1] - a[1])
     .filter(([, v]) => v > 0)
-    .slice(0, 3);
+    .slice(0, 5);
 
-  if (top.length === 0) {
-    return 'The athlete has no recent workout data logged yet.';
-  }
+  if (top.length === 0) return 'The athlete has no recent workout data logged yet.';
 
   const muscleList = top.map(([m, v]) => `${m} (${v.toFixed(1)}/10)`).join(', ');
+
+  const painMap: Record<string, number[]> = {};
+  recentSessions?.forEach(s => {
+    if (s.painAreas.length > 0) {
+      s.painAreas.forEach(area => {
+        if (!painMap[area]) painMap[area] = [];
+        painMap[area].push(s.painLevel);
+      });
+    }
+  });
+  const painSummary = Object.entries(painMap)
+    .map(([area, levels]) => `${area} (avg pain ${(levels.reduce((a, b) => a + b, 0) / levels.length).toFixed(1)}/10)`)
+    .join(', ');
+
+  // Most recent session pain detail — types + note elevate AI recovery urgency
+  const latest = recentSessions?.[0];
+  let latestPainDetail = '';
+  if (latest && (latest.painTypes?.length || latest.painNote)) {
+    const parts: string[] = [];
+    if (latest.painTypes?.length) parts.push(latest.painTypes.join(', '));
+    if (latest.painAreas?.length) parts.push(`in ${latest.painAreas.join(', ')}`);
+    if (latest.painNote) parts.push(`— "${latest.painNote}"`);
+    latestPainDetail = `Reported pain: ${parts.join(' ')}`;
+  }
+
+  const sessionSummary = recentSessions?.slice(0, 3).map(s =>
+    `${s.workoutType} — ${s.duration}min, intensity ${s.intensity}/10`
+  ).join(' | ');
 
   return `
 Athlete data:
@@ -81,87 +133,96 @@ Athlete data:
 - Overall fatigue score: ${overall.toFixed(1)}/10
 - Injury risk level: ${risk.label}
 - Most stressed muscles: ${muscleList}
+${painSummary ? `- Active pain/soreness: ${painSummary}` : '- No reported pain areas'}
+${latestPainDetail ? `- Latest session pain detail: ${latestPainDetail}` : ''}
+${sessionSummary ? `- Recent sessions: ${sessionSummary}` : ''}
   `.trim();
 }
 
 // ─── Main AI Query Function ───────────────────────────────────────────────────
-
-export type AiQueryResult =
-  | { success: true; response: string; remaining: number }
-  | { success: false; error: string; remaining?: number };
 
 export async function queryAI(
   query: string,
   scores: Record<string, number>,
   overall: number,
   risk: { label: string },
-  sport?: string
-): Promise<AiQueryResult> {
+  sport?: string,
+  recentSessions?: { workoutType: string; duration: number; intensity: number; muscles: string[]; painAreas: string[]; painLevel: number; painTypes?: string[]; painNote?: string; date: string }[]
+): Promise<AIResult> {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
-      return { success: false, error: 'Please log in to use AI insights.' };
+      return { ok: false, error: 'groq_down' };
     }
 
     const remaining = await getRemainingRequests(session.user.id);
     if (remaining <= 0) {
-      const tomorrow = new Date();
-      tomorrow.setHours(24, 0, 0, 0);
-      const hoursLeft = Math.ceil((tomorrow.getTime() - Date.now()) / 1000 / 60 / 60);
-      return {
-        success: false,
-        error: `You've used all 12 AI insights for today. Resets in ${hoursLeft} hour${hoursLeft !== 1 ? 's' : ''}.`,
-        remaining: 0,
-      };
+      return { ok: false, error: 'daily_limit', remaining: 0 };
     }
 
     const groqKey = getGroqKey();
     if (!groqKey) {
-      return { success: false, error: 'AI service not configured. Check your API key.' };
+      return { ok: false, error: 'groq_down' };
     }
 
-    const athleteContext = buildAthleteContext(scores, overall, risk, sport);
+    const athleteContext = buildAthleteContext(scores, overall, risk, sport, recentSessions);
 
-    const response = await fetch(GROQ_API_URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${groqKey}`,
-      },
-      body: JSON.stringify({
-        model: 'llama-3.3-70b-versatile',
-        max_tokens: 200,
-        temperature: 0.5,
-        messages: [
-          { role: 'system', content: SYSTEM_PROMPT },
-          {
-            role: 'user',
-            content: `${athleteContext}\n\nAthlete question: ${query}`,
-          },
-        ],
-      }),
-    });
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), FETCH_TIMEOUT_MS);
+
+    let response: Response;
+    try {
+      response = await fetch(GROQ_API_URL, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${groqKey}`,
+        },
+        body: JSON.stringify({
+          model: 'llama-3.3-70b-versatile',
+          max_tokens: 200,
+          temperature: 0.5,
+          messages: [
+            { role: 'system', content: SYSTEM_PROMPT },
+            {
+              role: 'user',
+              content: `${athleteContext}\n\nAthlete question: ${query}`,
+            },
+          ],
+        }),
+        signal: controller.signal,
+      });
+    } catch (fetchErr: any) {
+      // AbortError = timeout; TypeError with "network" = no connection
+      const isNetworkError =
+        fetchErr?.name === 'AbortError' ||
+        fetchErr?.name === 'TypeError' ||
+        fetchErr?.message?.toLowerCase().includes('network') ||
+        fetchErr?.message?.toLowerCase().includes('failed to fetch');
+      return { ok: false, error: isNetworkError ? 'offline' : 'groq_down' };
+    } finally {
+      clearTimeout(timeoutId);
+    }
+
+    if (response.status === 429) {
+      return { ok: false, error: 'rate_limit', remaining };
+    }
 
     if (!response.ok) {
-      const err = await response.json();
-      return { success: false, error: err.error?.message ?? 'AI service unavailable. Try again.' };
+      return { ok: false, error: 'groq_down', remaining };
     }
 
     const data = await response.json();
     const text = data.choices?.[0]?.message?.content?.trim();
 
     if (!text) {
-      return { success: false, error: 'No response from AI. Try again.' };
+      return { ok: false, error: 'groq_down', remaining };
     }
 
     await logRequest(session.user.id);
 
-    return {
-      success: true,
-      response: text,
-      remaining: remaining - 1,
-    };
-  } catch (e: any) {
-    return { success: false, error: 'Connection error. Check your internet and try again.' };
+    return { ok: true, insight: text, remaining: remaining - 1 };
+  } catch {
+    return { ok: false, error: 'offline' };
   }
 }

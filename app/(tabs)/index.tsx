@@ -1,17 +1,23 @@
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useRouter } from 'expo-router';
 import { useEffect, useState } from 'react';
-import { Pressable, ScrollView, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { EmptyState } from '@/components/EmptyState';
+import { SkeletonBlock } from '@/components/SkeletonBlock';
 import { useSessionLogs } from '@/context/SessionLogsContext';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { queryAI } from '@/lib/aiService';
+import type { AIErrorKind } from '@/lib/aiService';
 import { supabase } from '@/lib/supabase';
 import {
-  computeScores,
+  computeScoresFromLogs,
+  getRecoveryTips,
   getRiskLabel,
   getScoreColor,
   getScoreLabel,
   MUSCLE_GROUPS,
-  overallFatigue,
-  RECOVERY_TIPS,
+  overallFatigue
 } from '@/lib/wearTear';
 
 // ─── Suggested prompts ────────────────────────────────────────────────────────
@@ -70,6 +76,7 @@ function intensityLabel(intensity: number): string {
 // ─── Today's Activity Log Widget ─────────────────────────────────────────────
 
 function TodayActivityLog({ logs }: { logs: any[] }) {
+  const router = useRouter();
   const today = new Date().toDateString();
 
   const todayLogs = logs.filter((log) => {
@@ -201,12 +208,14 @@ function TodayActivityLog({ logs }: { logs: any[] }) {
 
           {/* Log another CTA card */}
           {todayLogs.length > 0 && (
-            <View className="w-32 items-center justify-center rounded-2xl border border-dashed border-actevix-border bg-actevix-surface p-3">
+            <Pressable
+              onPress={() => router.push('/(tabs)/log')}
+              className="w-32 items-center justify-center rounded-2xl border border-dashed border-actevix-border bg-actevix-surface p-3 active:opacity-70">
               <Text style={{ fontSize: 20 }}>➕</Text>
               <Text className="mt-1.5 text-center font-body text-xs text-white/30">
                 Log another session
               </Text>
-            </View>
+            </Pressable>
           )}
         </ScrollView>
       )}
@@ -214,39 +223,110 @@ function TodayActivityLog({ logs }: { logs: any[] }) {
   );
 }
 
+// ─── Groq Consent Modal ───────────────────────────────────────────────────────
+
+const AI_CONSENT_KEY = 'actevix_ai_consent';
+
+function GroqConsentModal({
+  visible,
+  onAgree,
+  onDecline,
+}: {
+  visible: boolean;
+  onAgree: () => void;
+  onDecline: () => void;
+}) {
+  return (
+    <Modal visible={visible} transparent animationType="fade" statusBarTranslucent>
+      <View className="flex-1 items-center justify-center bg-black/75 px-6">
+        <View className="w-full rounded-2xl border border-actevix-border bg-actevix-surface p-6">
+          <View className="mb-4 flex-row items-center gap-2">
+            <View className="h-2 w-2 rounded-full bg-actevix-teal" />
+            <Text className="font-body-medium text-xs uppercase tracking-wider text-actevix-teal">
+              Actevix AI · Data Notice
+            </Text>
+          </View>
+
+          <Text className="mb-3 font-heading text-xl text-white">AI-Powered Insights</Text>
+
+          <Text className="mb-6 font-body text-sm leading-relaxed text-white/70">
+            Actevix uses Groq AI to generate insights. Your session data (sport, fatigue scores,
+            muscle groups) is sent to Groq to process your request. No data is stored by Groq
+            beyond your request.
+          </Text>
+
+          <Pressable
+            onPress={onAgree}
+            className="mb-3 items-center rounded-xl bg-actevix-teal py-3.5 active:opacity-90">
+            <Text className="font-heading-semibold text-sm text-actevix-bg">I Agree</Text>
+          </Pressable>
+
+          <Pressable
+            onPress={onDecline}
+            className="items-center rounded-xl border border-actevix-border bg-actevix-bg py-3.5 active:opacity-70">
+            <Text className="font-body-medium text-sm text-white/50">Decline</Text>
+          </Pressable>
+        </View>
+      </View>
+    </Modal>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function DashboardTab() {
-  const { logs } = useSessionLogs();
+  const { logs, ready: logsReady } = useSessionLogs();
+  const { isOnline } = useNetworkStatus();
   const [bodyView, setBodyView] = useState<'front' | 'back'>('front');
   const [aiInput, setAiInput] = useState('');
   const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<AIErrorKind | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [lastQuery, setLastQuery] = useState<string>('');
   const [profileName, setProfileName] = useState('');
   const [profileSport, setProfileSport] = useState<string | undefined>();
+  const [profileLoading, setProfileLoading] = useState(true);
   const [remaining, setRemaining] = useState<number>(12);
+  const [consentGranted, setConsentGranted] = useState<boolean | null>(null);
+  const [showConsentModal, setShowConsentModal] = useState(false);
+  const [pendingQuery, setPendingQuery] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchProfile = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) return;
-      const { data } = await supabase
-        .from('profiles')
-        .select('name, sport')
-        .eq('id', session.user.id)
-        .single();
-      if (data?.name) setProfileName(data.name.split(' ')[0]);
-      if (data?.sport) setProfileSport(data.sport);
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session) return;
+        const { data } = await supabase
+          .from('profiles')
+          .select('name, sport')
+          .eq('id', session.user.id)
+          .single();
+        if (data?.name) setProfileName(data.name.split(' ')[0]);
+        if (data?.sport) setProfileSport(data.sport);
+      } finally {
+        setProfileLoading(false);
+      }
     };
     fetchProfile();
   }, []);
 
+  useEffect(() => {
+    AsyncStorage.getItem(AI_CONSENT_KEY).then((val) => {
+      setConsentGranted(val === 'granted');
+    });
+  }, []);
+
+  const isLoading = !logsReady || profileLoading;
+
   const latestLog = logs[0] ?? null;
-  const scores = computeScores(latestLog);
+  const scores = computeScoresFromLogs(logs);
   const overall = overallFatigue(scores);
   const risk = getRiskLabel(overall);
   const top = Object.entries(scores).sort((a, b) => b[1] - a[1]).filter(([, v]) => v > 0);
   const recoveryMuscles = top.filter(([, v]) => v >= 5).map(([m]) => m);
+
+  const sevenDaysAgoMs = Date.now() - 7 * 24 * 60 * 60 * 1000;
+  const recentLogs = logs.filter((l) => l.ts >= sevenDaysAgoMs);
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? 'Good morning' : hour < 17 ? 'Good afternoon' : 'Good evening';
@@ -256,43 +336,129 @@ export default function DashboardTab() {
     day: 'numeric',
   });
 
-  const handleAiSend = async (query?: string) => {
-    const q = query ?? aiInput;
-    if (!q.trim()) return;
+  const executeAiQuery = async (q: string) => {
     setAiLoading(true);
     setAiResponse(null);
+    setAiError(null);
     setAiInput('');
+    setLastQuery(q);
 
-    const result = await queryAI(q, scores, overall, risk, profileSport);
+    const result = await queryAI(q, scores, overall, risk, profileSport, logs.slice(0, 10));
 
-    setAiResponse(result.success ? result.response : result.error);
-    if ('remaining' in result && result.remaining !== undefined) {
+    if (result.ok) {
+      setAiResponse(result.insight);
+      setAiError(null);
+    } else {
+      setAiError(result.error);
+      setAiResponse(null);
+    }
+    if (result.remaining !== undefined) {
       setRemaining(result.remaining);
     }
     setAiLoading(false);
   };
 
+  const handleAiSend = async (query?: string) => {
+    const q = query ?? aiInput;
+    if (!q.trim()) return;
+
+    if (!consentGranted) {
+      setPendingQuery(q);
+      setShowConsentModal(true);
+      return;
+    }
+
+    await executeAiQuery(q);
+  };
+
+  const handleConsentAgree = async () => {
+    await AsyncStorage.setItem(AI_CONSENT_KEY, 'granted');
+    setConsentGranted(true);
+    setShowConsentModal(false);
+    const q = pendingQuery;
+    setPendingQuery(null);
+    if (q) await executeAiQuery(q);
+  };
+
+  const handleConsentDecline = () => {
+    setShowConsentModal(false);
+    setPendingQuery(null);
+  };
+
   return (
+    <>
     <ScrollView
       className="flex-1 bg-actevix-bg"
       contentContainerClassName="pb-28 pt-4"
       keyboardShouldPersistTaps="handled">
 
+      {/* ── Skeleton layout ─────────────────────────────────────────────── */}
+      {isLoading && (
+        <View className="px-5 pt-4">
+          {/* Greeting skeleton */}
+          <SkeletonBlock width="32%" height={12} borderRadius={6} />
+          <View className="mt-3">
+            <SkeletonBlock width="68%" height={38} borderRadius={10} />
+          </View>
+          <View className="mb-6 mt-2">
+            <SkeletonBlock width="52%" height={14} borderRadius={6} />
+          </View>
+
+          {/* Suggestion chips skeleton */}
+          <SkeletonBlock width="18%" height={10} borderRadius={5} />
+          <View className="mb-6 mt-3 flex-row gap-2">
+            <SkeletonBlock width={108} height={36} borderRadius={20} />
+            <SkeletonBlock width={130} height={36} borderRadius={20} />
+            <SkeletonBlock width={104} height={36} borderRadius={20} />
+          </View>
+
+          {/* Summary cards skeleton */}
+          <SkeletonBlock width="26%" height={10} borderRadius={5} />
+          <View className="mb-6 mt-3 flex-row gap-2">
+            <SkeletonBlock width="31%" height={68} borderRadius={12} />
+            <SkeletonBlock width="31%" height={68} borderRadius={12} />
+            <SkeletonBlock width="31%" height={68} borderRadius={12} />
+          </View>
+
+          {/* Heatmap skeleton */}
+          <SkeletonBlock width="16%" height={10} borderRadius={5} />
+          <View className="mt-3">
+            <SkeletonBlock width="100%" height={210} borderRadius={16} />
+          </View>
+        </View>
+      )}
+
       {/* ── Greeting ────────────────────────────────────────────────────── */}
-      <View className="px-5 pb-2 pt-2">
-        <Text className="font-body text-xs uppercase tracking-wider text-white/40">{dateStr}</Text>
-        <Text className="mt-1 font-heading text-3xl text-white">
-          {greeting}{profileName ? `, ${profileName}` : ''} 👋
-        </Text>
-        <Text className="mt-1 font-body text-sm text-white/45">
-          {latestLog
-            ? `Last logged: ${(latestLog as any).date} · ${(latestLog as any).sport}`
-            : 'No sessions logged yet — start in the Log tab'}
-        </Text>
-      </View>
+      {!isLoading && (
+        <View className="px-5 pb-2 pt-2">
+          <Text className="font-body text-xs uppercase tracking-wider text-white/40">{dateStr}</Text>
+          <Text className="mt-1 font-heading text-3xl text-white">
+            {greeting}{profileName ? `, ${profileName}` : ''} 👋
+          </Text>
+          <Text className="mt-1 font-body text-sm text-white/45">
+            {latestLog
+              ? `Last logged: ${(latestLog as any).date} · ${(latestLog as any).sport}`
+              : 'No sessions logged yet — start in the Log tab'}
+          </Text>
+        </View>
+      )}
 
       {/* ── TODAY'S ACTIVITY LOG ────────────────────────────────────────── */}
-      <TodayActivityLog logs={logs} />
+      {!isLoading && <TodayActivityLog logs={logs} />}
+
+      {/* ── Empty state (no sessions) ───────────────────────────────────── */}
+      {!isLoading && logs.length === 0 && (
+        <View className="mx-4 mt-4">
+          <EmptyState
+            icon="🏃"
+            title="No sessions yet"
+            subtitle="Log your first workout to see your fatigue score and AI recovery insights."
+          />
+        </View>
+      )}
+
+      {/* ── Data sections (hidden while loading) ────────────────────────── */}
+      {!isLoading && (<>
 
       {/* ── 1. AI INSIGHT ───────────────────────────────────────────────── */}
       <Text className="px-5 pb-2 pt-5 font-body-medium text-xs uppercase tracking-wider text-white/40">
@@ -320,7 +486,7 @@ export default function DashboardTab() {
               <Pressable
                 key={p}
                 onPress={() => handleAiSend(p)}
-                disabled={aiLoading || remaining === 0}
+                disabled={aiLoading || remaining === 0 || !isOnline}
                 className="rounded-full border border-actevix-teal/20 bg-actevix-teal/5 px-3 py-2 active:opacity-70">
                 <Text className="font-body text-xs text-white/55">{p}</Text>
               </Pressable>
@@ -337,19 +503,66 @@ export default function DashboardTab() {
           onChangeText={setAiInput}
           multiline
           numberOfLines={3}
-          editable={!aiLoading && remaining > 0}
+          editable={!aiLoading && remaining > 0 && isOnline}
         />
 
         <Pressable
           onPress={() => handleAiSend()}
-          disabled={aiLoading || remaining === 0}
-          className={`mt-3 items-center rounded-xl py-3 ${remaining === 0 ? 'bg-actevix-border' : 'bg-actevix-teal active:opacity-90'}`}>
-          <Text className={`font-heading-semibold text-sm ${remaining === 0 ? 'text-white/30' : 'text-actevix-bg'}`}>
-            {aiLoading ? 'Thinking...' : remaining === 0 ? 'Limit reached — resets tomorrow' : 'Ask AI →'}
+          disabled={aiLoading || remaining === 0 || !isOnline}
+          className={`mt-3 items-center rounded-xl py-3 ${
+            !isOnline || remaining === 0 ? 'bg-actevix-border' : 'bg-actevix-teal active:opacity-90'
+          }`}>
+          <Text className={`font-heading-semibold text-sm ${
+            !isOnline || remaining === 0 ? 'text-white/30' : 'text-actevix-bg'
+          }`}>
+            {aiLoading ? 'Thinking...' : remaining === 0 ? 'Limit reached — resets at midnight' : 'Ask AI →'}
           </Text>
         </Pressable>
 
-        {aiResponse !== null && (
+        {/* ── Inline AI states (no layout shift) ────────────────────── */}
+        {!isOnline && !aiLoading && (
+          <View className="mt-4 rounded-xl border border-actevix-border bg-actevix-bg px-4 py-3">
+            <Text className="font-body text-sm text-white/50">
+              No connection — AI insights unavailable offline.
+            </Text>
+          </View>
+        )}
+
+        {isOnline && aiError === 'offline' && (
+          <View className="mt-4 flex-row items-center justify-between rounded-xl border border-actevix-border bg-actevix-bg px-4 py-3">
+            <Text className="flex-1 font-body text-sm text-white/50">
+              AI insights temporarily unavailable. Try again later.
+            </Text>
+            <Pressable
+              onPress={() => { setAiError(null); executeAiQuery(lastQuery); }}
+              className="ml-3 rounded-lg bg-actevix-surface px-3 py-1.5 active:opacity-70">
+              <Text className="font-body-medium text-xs text-actevix-teal">Retry</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {isOnline && (aiError === 'rate_limit' || aiError === 'groq_down') && (
+          <View className="mt-4 flex-row items-center justify-between rounded-xl border border-actevix-border bg-actevix-bg px-4 py-3">
+            <Text className="flex-1 font-body text-sm text-white/50">
+              AI insights temporarily unavailable. Try again later.
+            </Text>
+            <Pressable
+              onPress={() => { setAiError(null); executeAiQuery(lastQuery); }}
+              className="ml-3 rounded-lg bg-actevix-surface px-3 py-1.5 active:opacity-70">
+              <Text className="font-body-medium text-xs text-actevix-teal">Retry</Text>
+            </Pressable>
+          </View>
+        )}
+
+        {aiError === 'daily_limit' && (
+          <View className="mt-4 rounded-xl border border-actevix-border bg-actevix-bg px-4 py-3">
+            <Text className="font-body text-sm text-white/50">
+              You've used all 12 AI insights for today. Resets at midnight.
+            </Text>
+          </View>
+        )}
+
+        {aiResponse !== null && !aiError && (
           <View className="mt-4 rounded-xl border border-actevix-teal/15 bg-actevix-teal/5 p-4">
             <Text className="mb-2 font-body-medium text-[10px] uppercase tracking-wider text-actevix-teal">
               Response
@@ -442,7 +655,7 @@ export default function DashboardTab() {
                   · {getScoreLabel(scores[m])}
                 </Text>
               </Text>
-              {(RECOVERY_TIPS[m] ?? ['Rest and monitor', 'Stay hydrated']).map((tip, i) => (
+              {getRecoveryTips(m, profileSport, scores[m]).map((tip, i) => (
                 <View key={i} className="mb-1.5 flex-row gap-2">
                   <View className="mt-1.5 h-1.5 w-1.5 rounded-full bg-actevix-border" />
                   <Text className="flex-1 font-body text-xs text-white/55">{tip}</Text>
@@ -452,7 +665,7 @@ export default function DashboardTab() {
           ))}
           <View className="mt-1 rounded-xl bg-actevix-bg px-3 py-2">
             <Text className="font-body text-xs text-white/40">
-              💧 Hydrate · 😴 8hrs sleep · 🧘 10min mobility daily
+              💧 Hydrate · 😴 8hrs sleep · 🧘 60min mobility daily
             </Text>
           </View>
         </View>
@@ -492,6 +705,9 @@ export default function DashboardTab() {
           }).map((m) => {
             const score = scores[m] ?? 0;
             const color = getScoreColor(score);
+            const sessionCount = recentLogs.filter(
+              (l) => l.muscles.includes(m) || l.painAreas.includes(m)
+            ).length;
             return (
               <View key={m} className="flex-row items-center gap-3">
                 <View className="h-2 w-2 rounded-full" style={{ backgroundColor: color }} />
@@ -505,6 +721,9 @@ export default function DashboardTab() {
                     }}
                   />
                 </View>
+                {sessionCount > 0 && (
+                  <Text className="font-body text-[10px] text-white/40">{sessionCount}x</Text>
+                )}
                 <Text
                   className="w-16 text-right font-body text-[10px]"
                   style={{ color }}>
@@ -530,13 +749,26 @@ export default function DashboardTab() {
           ))}
         </View>
 
-        {!latestLog && (
-          <Text className="mt-3 text-center font-body text-xs text-white/30">
+        <Text className="mt-2 text-center font-body text-[11px] text-white/30">
+          Sessions (last 7 days): {recentLogs.length}
+        </Text>
+
+        {recentLogs.length === 0 && (
+          <Text className="mt-1 text-center font-body text-xs text-white/30">
             Log a session to see heatmap colors
           </Text>
         )}
       </View>
 
+      </>)}
+
     </ScrollView>
+
+    <GroqConsentModal
+      visible={showConsentModal}
+      onAgree={handleConsentAgree}
+      onDecline={handleConsentDecline}
+    />
+    </>
   );
 }

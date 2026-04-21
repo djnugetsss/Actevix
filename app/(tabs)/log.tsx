@@ -3,7 +3,9 @@ import { router } from 'expo-router';
 import { useMemo, useState } from 'react';
 import { Alert, Pressable, ScrollView, Text, TextInput, View } from 'react-native';
 
+import { EmptyState } from '@/components/EmptyState';
 import { useSessionLogs } from '@/context/SessionLogsContext';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 
 // ─── Expanded Data ────────────────────────────────────────────────────────────
 
@@ -132,6 +134,8 @@ const SPORT_PRESETS: Record<string, { muscles: string[]; workoutTypes: string[] 
   },
 };
 
+const PAIN_TYPES = ['Sharp', 'Dull', 'Tight', 'Sore', 'Burning'] as const;
+
 // ─── Initial Form ─────────────────────────────────────────────────────────────
 
 const initialForm = {
@@ -143,6 +147,8 @@ const initialForm = {
   muscles: [] as string[],
   painAreas: [] as string[],
   painLevel: 3,
+  painTypes: [] as string[],
+  painNote: '',
 };
 
 // ─── Searchable Chip Row ──────────────────────────────────────────────────────
@@ -335,10 +341,18 @@ function WorkoutTypePicker({
 // ─── Main Screen ──────────────────────────────────────────────────────────────
 
 export default function LogScreen() {
-  const { addLog } = useSessionLogs();
+  const { addLog, logs } = useSessionLogs();
+  const { isOnline } = useNetworkStatus();
   const [form, setForm] = useState(initialForm);
+  const [painExpanded, setPainExpanded] = useState(false);
 
   const preset = SPORT_PRESETS[form.sport] ?? SPORT_PRESETS.Other;
+
+  // Muscles available in pain selector — filtered to session muscles, or all if none picked
+  const painMuscleOptions = useMemo(
+    () => (form.muscles.length > 0 ? form.muscles : [...ALL_MUSCLES]),
+    [form.muscles]
+  );
 
   const handleSportChange = (sport: string) => {
     const newPreset = SPORT_PRESETS[sport] ?? SPORT_PRESETS.Other;
@@ -346,17 +360,26 @@ export default function LogScreen() {
       ...f,
       sport,
       workoutType: newPreset.workoutTypes[0] ?? 'Full Body',
-      // Keep existing selections, just update sport
+      muscles: newPreset.muscles.length > 0 ? [...newPreset.muscles] : f.muscles,
+      // keep painAreas as-is — user-reported pain shouldn't be wiped
     }));
   };
 
-  const toggleChip = (field: 'muscles' | 'painAreas', val: string) => {
+  const toggleChip = (field: 'muscles' | 'painAreas' | 'painTypes', val: string) => {
     setForm((f) => ({
       ...f,
-      [field]: f[field].includes(val)
-        ? f[field].filter((x) => x !== val)
-        : [...f[field], val],
+      [field]: (f[field] as string[]).includes(val)
+        ? (f[field] as string[]).filter((x) => x !== val)
+        : [...(f[field] as string[]), val],
     }));
+  };
+
+  const togglePainSection = () => {
+    if (painExpanded) {
+      // Collapse — clear all pain data
+      setForm((f) => ({ ...f, painAreas: [], painTypes: [], painNote: '' }));
+    }
+    setPainExpanded((v) => !v);
   };
 
   const handleSubmit = () => {
@@ -373,12 +396,15 @@ export default function LogScreen() {
       muscles: form.muscles,
       painAreas: form.painAreas,
       painLevel: form.painLevel,
+      painTypes: form.painTypes,
+      painNote: form.painNote,
     });
     setForm({
       ...initialForm,
       sport: form.sport,
       workoutType: form.workoutType,
     });
+    setPainExpanded(false);
     router.push('/');
   };
 
@@ -462,44 +488,143 @@ export default function LogScreen() {
           onToggle={(m) => toggleChip('muscles', m)}
         />
 
-        {/* Pain Areas */}
-        <SearchableChipRow
-          label="Pain / soreness areas"
-          values={ALL_MUSCLES}
-          suggested={preset.muscles}
-          selected={form.painAreas}
-          onToggle={(m) => toggleChip('painAreas', m)}
-          danger
-        />
-
-        {/* Pain Level */}
-        {form.painAreas.length > 0 && (
-          <>
-            <Text className="mb-1 font-body-medium text-sm text-white/70">
-              Pain level: <Text className="text-red-400">{form.painLevel}/10</Text>
-            </Text>
-            <Slider
-              minimumValue={1}
-              maximumValue={10}
-              step={1}
-              value={form.painLevel}
-              onValueChange={(painLevel) => setForm((f) => ({ ...f, painLevel }))}
-              minimumTrackTintColor="#ef4444"
-              maximumTrackTintColor="#1E2A36"
-              thumbTintColor="#f87171"
-            />
-            <View className="mb-4 flex-row justify-between">
-              <Text className="font-body text-xs text-white/45">Mild</Text>
-              <Text className="font-body text-xs text-white/45">Severe</Text>
+        {/* Pain & Discomfort — collapsible */}
+        <View className="mb-4">
+          <Pressable onPress={togglePainSection} className="flex-row items-center gap-2">
+            <View
+              className={`h-5 w-5 items-center justify-center rounded-full border ${
+                painExpanded ? 'border-red-500/80 bg-red-500/15' : 'border-actevix-border bg-actevix-bg'
+              }`}>
+              <Text
+                className={`font-body-medium text-xs leading-none ${
+                  painExpanded ? 'text-red-400' : 'text-white/60'
+                }`}>
+                {painExpanded ? '×' : '+'}
+              </Text>
             </View>
-          </>
+            <Text
+              className={`font-body-medium text-sm ${
+                painExpanded ? 'text-red-400' : 'text-white/50'
+              }`}>
+              Add pain or discomfort (optional)
+            </Text>
+          </Pressable>
+
+          {painExpanded && (
+            <View className="mt-3">
+              {/* Muscle / area selector */}
+              <Text className="mb-2 font-body-medium text-sm text-white/70">Muscle / area</Text>
+              <View className="mb-3 flex-row flex-wrap gap-2">
+                {painMuscleOptions.map((m) => {
+                  const on = form.painAreas.includes(m);
+                  return (
+                    <Pressable
+                      key={m}
+                      onPress={() => toggleChip('painAreas', m)}
+                      className={`rounded-full border px-3 py-2 ${
+                        on ? 'border-red-500/80 bg-red-500/15' : 'border-actevix-border bg-actevix-bg'
+                      }`}>
+                      <Text
+                        className={`font-body text-sm ${on ? 'text-red-400' : 'text-white/60'}`}>
+                        {m}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Pain type pills */}
+              <Text className="mb-2 font-body-medium text-sm text-white/70">Pain type</Text>
+              <View className="mb-3 flex-row flex-wrap gap-2">
+                {PAIN_TYPES.map((pt) => {
+                  const on = form.painTypes.includes(pt);
+                  return (
+                    <Pressable
+                      key={pt}
+                      onPress={() => toggleChip('painTypes', pt)}
+                      className={`rounded-full border px-3 py-2 ${
+                        on ? 'border-red-500/80 bg-red-500/15' : 'border-actevix-border bg-actevix-bg'
+                      }`}>
+                      <Text
+                        className={`font-body text-sm ${on ? 'text-red-400' : 'text-white/60'}`}>
+                        {pt}
+                      </Text>
+                    </Pressable>
+                  );
+                })}
+              </View>
+
+              {/* Free-text note */}
+              <TextInput
+                className="rounded-xl border border-actevix-border bg-actevix-surface px-3 py-2 font-body text-sm text-white"
+                placeholder="Describe further (optional)"
+                placeholderTextColor="#4B5563"
+                value={form.painNote}
+                onChangeText={(painNote) => setForm((f) => ({ ...f, painNote }))}
+                maxLength={120}
+                autoCorrect={false}
+              />
+            </View>
+          )}
+        </View>
+
+        {!isOnline && (
+          <View className="mb-3 mt-2 rounded-xl border border-actevix-border bg-actevix-bg px-4 py-3">
+            <Text className="font-body text-sm text-white/50">
+              You're offline — connect to save your session.
+            </Text>
+          </View>
         )}
 
         <Pressable
           onPress={handleSubmit}
-          className="mt-2 items-center rounded-xl bg-actevix-teal py-4 active:opacity-90">
-          <Text className="font-heading-semibold text-base text-actevix-bg">Save session →</Text>
+          disabled={!isOnline}
+          className={`mt-2 items-center rounded-xl py-4 ${isOnline ? 'bg-actevix-teal active:opacity-90' : 'bg-actevix-border'}`}>
+          <Text className={`font-heading-semibold text-base ${isOnline ? 'text-actevix-bg' : 'text-white/30'}`}>
+            Save session →
+          </Text>
         </Pressable>
+      </View>
+
+      {/* ── Past Sessions ──────────────────────────────────────────────── */}
+      <View className="mt-6">
+        <Text className="mb-3 font-body-medium text-xs uppercase tracking-wider text-white/40">
+          Past Sessions
+        </Text>
+
+        {logs.length === 0 ? (
+          <EmptyState
+            icon="📋"
+            title="No sessions logged"
+            subtitle="Your completed sessions will appear here."
+          />
+        ) : (
+          <>
+            {logs.slice(0, 5).map((log, i) => (
+              <View
+                key={log.ts ?? i}
+                className="mb-3 rounded-2xl border border-actevix-border bg-actevix-surface p-3">
+                <View className="flex-row items-center justify-between">
+                  <Text className="font-heading-semibold text-sm text-white">{log.sport}</Text>
+                  <Text className="font-body text-xs text-white/40">{log.date}</Text>
+                </View>
+                <Text className="mt-1 font-body text-xs text-white/55">
+                  {log.workoutType} · {log.duration}m · Intensity {log.intensity}/10
+                </Text>
+                {log.muscles.length > 0 && (
+                  <Text className="mt-1 font-body text-[11px] text-white/35" numberOfLines={1}>
+                    {log.muscles.slice(0, 4).join(', ')}{log.muscles.length > 4 ? ` +${log.muscles.length - 4}` : ''}
+                  </Text>
+                )}
+              </View>
+            ))}
+            {logs.length > 5 && (
+              <Text className="mt-1 text-center font-body text-xs text-white/30">
+                Showing 5 most recent sessions
+              </Text>
+            )}
+          </>
+        )}
       </View>
     </ScrollView>
   );

@@ -1,14 +1,16 @@
 import FontAwesome from '@expo/vector-icons/FontAwesome';
 import { Tabs, useRouter } from 'expo-router';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   Alert,
+  Animated,
   Linking,
   Modal,
   Platform,
   Pressable,
   ScrollView,
   Text,
+  TextInput,
   View,
 } from 'react-native';
 
@@ -16,7 +18,9 @@ import { useClientOnlyValue } from '@/components/useClientOnlyValue';
 import { theme } from '@/constants/theme';
 import { SessionLogsProvider } from '@/context/SessionLogsContext';
 import { TeamProvider } from '@/context/TeamContext';
+import { useNetworkStatus } from '@/hooks/useNetworkStatus';
 import { supabase } from '@/lib/supabase';
+import { SPORTS } from '@/lib/wearTear';
 
 // ─── Settings Modal ───────────────────────────────────────────────────────────
 
@@ -38,8 +42,23 @@ function SettingsModal({
   } | null>(null);
   const [userEmail, setUserEmail] = useState('');
 
+  // Edit-profile form state
+  const [editingProfile, setEditingProfile] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editSport, setEditSport] = useState('');
+  const [editFeet, setEditFeet] = useState('');
+  const [editInches, setEditInches] = useState('');
+  const [editWeight, setEditWeight] = useState('');
+  const [editGender, setEditGender] = useState('');
+  const [saving, setSaving] = useState(false);
+  const [savedFeedback, setSavedFeedback] = useState(false);
+
   useEffect(() => {
-    if (!visible) return;
+    if (!visible) {
+      setEditingProfile(false);
+      setSavedFeedback(false);
+      return;
+    }
     const fetchProfile = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
@@ -53,6 +72,44 @@ function SettingsModal({
     };
     fetchProfile();
   }, [visible]);
+
+  const startEditing = () => {
+    setEditName(profile?.name ?? '');
+    setEditSport(profile?.sport ?? '');
+    setEditFeet(String(profile?.height_feet ?? ''));
+    setEditInches(String(profile?.height_inches ?? ''));
+    setEditWeight(String(profile?.weight_lbs ?? ''));
+    setEditGender(profile?.gender ?? '');
+    setSavedFeedback(false);
+    setEditingProfile(true);
+  };
+
+  const handleSaveProfile = async () => {
+    setSaving(true);
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) { setSaving(false); return; }
+
+    const updated = {
+      id: session.user.id,
+      name: editName.trim(),
+      sport: editSport,
+      height_feet: parseInt(editFeet, 10) || 0,
+      height_inches: parseInt(editInches, 10) || 0,
+      weight_lbs: parseFloat(editWeight) || 0,
+      gender: editGender || null,
+    };
+
+    const { error } = await supabase.from('profiles').upsert(updated);
+    setSaving(false);
+    if (!error) {
+      setProfile((prev) => prev ? { ...prev, ...updated } : prev);
+      setSavedFeedback(true);
+      setTimeout(() => {
+        setSavedFeedback(false);
+        setEditingProfile(false);
+      }, 1500);
+    }
+  };
 
   const handleLogout = async () => {
     const confirm = () => new Promise<boolean>((resolve) => {
@@ -132,27 +189,154 @@ function SettingsModal({
 
           <ScrollView showsVerticalScrollIndicator={false}>
 
-            {/* Profile Summary */}
-            {profile && (
+            {/* Edit Profile form (inline) */}
+            {editingProfile ? (
               <View className="mb-4 rounded-2xl border border-actevix-border bg-actevix-bg p-4">
-                <Text className="mb-3 font-body-medium text-xs uppercase tracking-wider text-white/40">
-                  Your Profile
+                <Text className="mb-4 font-body-medium text-xs uppercase tracking-wider text-white/40">
+                  Edit Profile
                 </Text>
-                {[
-                  ['Name', profile.name],
-                  ['Sport', profile.sport],
-                  ['Height', `${profile.height_feet}' ${profile.height_inches}"`],
-                  ['Weight', `${profile.weight_lbs} lbs`],
-                  ['Gender', profile.gender ?? 'Not specified'],
-                ].map(([label, value], i, arr) => (
-                  <View
-                    key={label}
-                    className={`flex-row items-center justify-between py-2.5 ${i < arr.length - 1 ? 'border-b border-actevix-border' : ''}`}>
-                    <Text className="font-body text-sm text-white/50">{label}</Text>
-                    <Text className="font-body-medium text-sm text-white">{value}</Text>
+
+                {/* First name */}
+                <Text className="mb-1 font-body-medium text-sm text-white/70">First name</Text>
+                <TextInput
+                  className="mb-4 rounded-xl border border-actevix-border bg-actevix-surface px-3 py-3 font-body text-base text-white"
+                  placeholderTextColor="#6B7280"
+                  placeholder="Your name"
+                  value={editName}
+                  onChangeText={setEditName}
+                />
+
+                {/* Height */}
+                <Text className="mb-1 font-body-medium text-sm text-white/70">Height</Text>
+                <View className="mb-4 flex-row gap-2">
+                  <TextInput
+                    className="flex-1 rounded-xl border border-actevix-border bg-actevix-surface px-3 py-3 font-body text-base text-white"
+                    placeholderTextColor="#6B7280"
+                    placeholder="ft"
+                    value={editFeet}
+                    onChangeText={setEditFeet}
+                    keyboardType="number-pad"
+                    maxLength={1}
+                  />
+                  <TextInput
+                    className="flex-1 rounded-xl border border-actevix-border bg-actevix-surface px-3 py-3 font-body text-base text-white"
+                    placeholderTextColor="#6B7280"
+                    placeholder="in"
+                    value={editInches}
+                    onChangeText={setEditInches}
+                    keyboardType="number-pad"
+                    maxLength={2}
+                  />
+                </View>
+
+                {/* Weight */}
+                <Text className="mb-1 font-body-medium text-sm text-white/70">Weight (lbs)</Text>
+                <TextInput
+                  className="mb-4 rounded-xl border border-actevix-border bg-actevix-surface px-3 py-3 font-body text-base text-white"
+                  placeholderTextColor="#6B7280"
+                  placeholder="e.g. 165"
+                  value={editWeight}
+                  onChangeText={setEditWeight}
+                  keyboardType="decimal-pad"
+                />
+
+                {/* Gender */}
+                <Text className="mb-2 font-body-medium text-sm text-white/70">Gender</Text>
+                <View className="mb-4 flex-row flex-wrap gap-2">
+                  {['Male', 'Female', 'Other', 'Prefer not to say'].map((g) => {
+                    const active = editGender === g;
+                    return (
+                      <Pressable
+                        key={g}
+                        onPress={() => setEditGender(g)}
+                        className={`rounded-full border px-4 py-2 ${active ? 'border-actevix-teal bg-actevix-teal/15' : 'border-actevix-border bg-actevix-surface'}`}>
+                        <Text className={`font-body text-sm ${active ? 'text-actevix-teal' : 'text-white/70'}`}>
+                          {g}
+                        </Text>
+                      </Pressable>
+                    );
+                  })}
+                </View>
+
+                {/* Primary sport */}
+                <Text className="mb-2 font-body-medium text-sm text-white/70">Primary sport</Text>
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  className="mb-5">
+                  <View className="flex-row gap-2 pr-2">
+                    {SPORTS.map((s) => {
+                      const active = editSport === s;
+                      return (
+                        <Pressable
+                          key={s}
+                          onPress={() => setEditSport(s)}
+                          className={`rounded-full border px-4 py-2 ${active ? 'border-actevix-teal bg-actevix-teal/15' : 'border-actevix-border bg-actevix-surface'}`}>
+                          <Text className={`font-body text-sm ${active ? 'text-actevix-teal' : 'text-white/70'}`}>
+                            {s}
+                          </Text>
+                        </Pressable>
+                      );
+                    })}
                   </View>
-                ))}
+                </ScrollView>
+
+                {/* Save / Cancel */}
+                {savedFeedback ? (
+                  <View className="items-center py-2">
+                    <Text className="font-heading-semibold text-base text-actevix-teal">✓ Saved</Text>
+                  </View>
+                ) : (
+                  <View className="flex-row gap-3">
+                    <Pressable
+                      disabled={saving}
+                      onPress={handleSaveProfile}
+                      className="flex-1 items-center rounded-xl bg-actevix-teal py-3 active:opacity-90">
+                      <Text className="font-heading-semibold text-actevix-bg">
+                        {saving ? 'Saving…' : 'Save'}
+                      </Text>
+                    </Pressable>
+                    <Pressable
+                      onPress={() => setEditingProfile(false)}
+                      className="rounded-xl border border-actevix-border px-5 py-3 active:opacity-80">
+                      <Text className="font-body text-white/80">Cancel</Text>
+                    </Pressable>
+                  </View>
+                )}
               </View>
+            ) : (
+              <>
+                {/* Edit Profile row */}
+                <Pressable
+                  onPress={startEditing}
+                  className="mb-4 flex-row items-center justify-between rounded-2xl border border-actevix-border bg-actevix-bg px-4 py-3.5 active:opacity-70">
+                  <Text className="font-body-medium text-sm text-white">Edit Profile</Text>
+                  <FontAwesome name="chevron-right" size={12} color="#4B5563" />
+                </Pressable>
+
+                {/* Profile Summary */}
+                {profile && (
+                  <View className="mb-4 rounded-2xl border border-actevix-border bg-actevix-bg p-4">
+                    <Text className="mb-3 font-body-medium text-xs uppercase tracking-wider text-white/40">
+                      Your Profile
+                    </Text>
+                    {[
+                      ['Name', profile.name],
+                      ['Sport', profile.sport],
+                      ['Height', `${profile.height_feet}' ${profile.height_inches}"`],
+                      ['Weight', `${profile.weight_lbs} lbs`],
+                      ['Gender', profile.gender ?? 'Not specified'],
+                    ].map(([label, value], i, arr) => (
+                      <View
+                        key={label}
+                        className={`flex-row items-center justify-between py-2.5 ${i < arr.length - 1 ? 'border-b border-actevix-border' : ''}`}>
+                        <Text className="font-body text-sm text-white/50">{label}</Text>
+                        <Text className="font-body-medium text-sm text-white">{value}</Text>
+                      </View>
+                    ))}
+                  </View>
+                )}
+              </>
             )}
 
             {/* Medical Disclaimer */}
@@ -225,6 +409,30 @@ function SettingsModal({
   );
 }
 
+// ─── Offline Banner ───────────────────────────────────────────────────────────
+
+function OfflineBanner({ visible }: { visible: boolean }) {
+  const height = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(height, {
+      toValue: visible ? 32 : 0,
+      duration: 260,
+      useNativeDriver: false,
+    }).start();
+  }, [visible, height]);
+
+  return (
+    <Animated.View
+      style={{ height, overflow: 'hidden' }}
+      className="bg-actevix-border">
+      <View className="flex-1 items-center justify-center">
+        <Text className="font-body-medium text-xs text-white/70">No internet connection</Text>
+      </View>
+    </Animated.View>
+  );
+}
+
 // ─── Settings Button ──────────────────────────────────────────────────────────
 
 function SettingsButton({ onPress }: { onPress: () => void }) {
@@ -246,6 +454,7 @@ function TabBarIcon(props: {
 
 export default function TabLayout() {
   const [settingsVisible, setSettingsVisible] = useState(false);
+  const { isOnline } = useNetworkStatus();
 
   const headerRight = () => (
     <SettingsButton onPress={() => setSettingsVisible(true)} />
@@ -258,6 +467,7 @@ export default function TabLayout() {
           visible={settingsVisible}
           onClose={() => setSettingsVisible(false)}
         />
+        <OfflineBanner visible={!isOnline} />
         <Tabs
           screenOptions={{
             tabBarActiveTintColor: theme.colors.teal,
